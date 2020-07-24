@@ -4,7 +4,6 @@
 #include <ctype.h>
 #include <sys/mman.h>
 
-#define PORT 14550
 #define MAXDATASIZE 2048
 #define TOPEPRUEBAS 10
 
@@ -22,16 +21,33 @@
 
 
 //Variables globales sockets  
+//arreglo de miembros
+struct Punto * usuarios_pizarra;//para almacenar los colores de los miembros (lo distingo de los puntos que son volatiles)
 pthread_t t_id; //hilo de ejecucion que escucha al servidor
 int conect;
 int sockfd, numbytes;
-char buf[MAXDATASIZE]; // Buffer donde se reciben los datos
+char buffer[MAXDATASIZE]; // Buffer donde se reciben los datos
 struct hostent *he; // Se utiliza para convertir el nombre del hosta su dirección IP
 struct sockaddr_in their_addr; // dirección del server donde se conectara 
 char *ip;
+int stop=0;
+/*Arreglos de structs para almacenar los puntos de los usuarios*/
+struct Punto *last_point;
+struct Punto *old_point;
+struct Punto *colores_pinceles_usuarios;
+
+struct Punto last;
 //
 
 //Variables globales GUI
+
+struct Point {
+	int x;
+	int y;
+	double red, green, blue,alpha;
+	struct Point *next;
+} *p1, *p2, *start;
+struct Punto color_pincel;
 GtkWidget  *window;
 GtkWidget  *fixed1;
 GtkWidget  *draw_area;
@@ -40,11 +56,10 @@ GtkWidget  *color_button;
 GtkWidget  *btn_spin;
 GtkWidget  *btn_conectar;
 GtkWidget  *lbl_connect;
-GtkWidget  *btn_dark;
+GtkWidget  *btn_bg;
 GtkWidget  *box;
 GtkBuilder *builder; 
 
-Point p1, *p2, *start;
 double red, green, blue, alpha;
 double red_bg , green_bg, blue_bg;
 //
@@ -78,9 +93,13 @@ int main(int argc, char *argv[]) {
     ip = argv[1];
     gdk_threads_init ();
     gdk_threads_enter();
-
+    usuarios_pizarra = (struct Punto*)malloc(sizeof(struct Punto)*max_clientes);
+    //guardan los ultimos 2 puntos de cada miembro para dibujar una recta
+    last_point = (struct Punto*)malloc(sizeof(struct Punto)*max_clientes);
+    old_point = (struct Punto*)malloc(sizeof(struct Punto)*max_clientes);
+    
     gtk_init (&argc, &argv);
-    memset(buf,'\0',MAXDATASIZE);
+    memset(buffer,'\0',MAXDATASIZE);
     configure_GUI();
     
 	
@@ -146,7 +165,6 @@ gboolean on_draw_area_button_release_event (GtkWidget *widget, GdkEventButton *e
 
 //callback para el evento button_press_event 
 gboolean on_draw_area_button_press_event (GtkWidget *widget, GdkEventButton *event) {
-    printf("on_draw_area_button_press_event \n");
 
     //le pasa la posicion en donde se hizo click.
     draw_brush (widget, event->x, event->y);
@@ -172,7 +190,6 @@ void on_clear_clicked(GtkWidget *b1) {
  *  Cuando estas presionando el boton del mouse y a la vez te moves.
 */
 gboolean on_draw_area_motion_notify_event (GtkWidget *widget, GdkEventMotion *event, gpointer data) {
-    printf("on_draw_area_motion_notify_event \n");
 
     if (event->state & GDK_BUTTON1_MASK ) 
     draw_brush (widget, event->x, event->y);
@@ -180,7 +197,6 @@ gboolean on_draw_area_motion_notify_event (GtkWidget *widget, GdkEventMotion *ev
     }
 
 static void draw_brush (GtkWidget *widget, gdouble x, gdouble y) {
-    printf("draw_brush \n");
 
     p1 = malloc (sizeof(struct Point));
     if (p1 == NULL) { printf("out of memory\n"); abort(); }
@@ -195,110 +211,212 @@ static void draw_brush (GtkWidget *widget, gdouble x, gdouble y) {
     gtk_widget_queue_draw (draw_area);
 }
 
-
+/*
 void on_color_button_color_set(GtkWidget *c) { 
     GdkRGBA color; //es un struct
     gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(c),&color);
     red = color.red;  green = color.green; blue = color.blue; alpha = color.alpha;
     send_select_color();
-}
+}*/
 
 void send_select_color(){
 	
 	
     if(conect == 1)
     {	
+	color_pincel.blue = blue;
+	color_pincel.red = red;
+	color_pincel.green = green;
+	color_pincel.tipo = NEWCOLORPINCEL;
 	char mensaje[MAXDATASIZE];
 	memset(mensaje,'\0',1);
-	char ared[8],ablue[8],agreen[8];
+	char tipo[1],ared[8],ablue[8],agreen[8];
 	memset(ared,'\0',1);
 	memset(ablue,'\0',1);
 	memset(agreen,'\0',1);
-
-	sprintf(ared,"%lf",red);
-	strcpy(mensaje,ared);
+	tipo[0]= '1';
+	strcpy(mensaje,tipo);
 	strcat(mensaje,"|");
-	sprintf(agreen,"%lf",green);
+	sprintf(ared,"%lf",color_pincel.red);
+	strcat(mensaje,ared);
+	strcat(mensaje,"|");
+	sprintf(agreen,"%lf",color_pincel.green);
 	strcat(mensaje,agreen);
 	strcat(mensaje,"|");
-	sprintf(ablue,"%lf",blue);
+	sprintf(ablue,"%lf",color_pincel.blue);
 	strcat(mensaje,ablue);
-	
+	printf("mensaje: %s \n",mensaje);
 
 	if (send(sockfd, mensaje, sizeof(mensaje), 0) == -1){
 	    perror("send: ");
 	    exit(EXIT_FAILURE);
 	}
+	
+	fflush(NULL);
+    }
+}
+void send_select_color_bg(){
+	
+    if(conect == 1)
+    {	
+	
+	char mensaje[MAXDATASIZE];
+	memset(mensaje,'\0',1);
+	char tipo[1],ared[8],ablue[8],agreen[8];
+	memset(ared,'\0',1);
+	memset(ablue,'\0',1);
+	memset(agreen,'\0',1);
+	tipo[0]= NEWCOLORBG;
+	strcpy(mensaje,tipo);
+	strcat(mensaje,"|");
+	sprintf(ared,"%lf",red_bg);
+	strcat(mensaje,ared);
+	strcat(mensaje,"|");
+	sprintf(agreen,"%lf",green_bg);
+	strcat(mensaje,agreen);
+	strcat(mensaje,"|");
+	sprintf(ablue,"%lf",blue_bg);
+	strcat(mensaje,ablue);
+	if (send(sockfd, mensaje, sizeof(mensaje), 0) == -1){
+	    perror("send: ");
+	    exit(EXIT_FAILURE);
+	}
+	
+	printf("send_select_Color_bg EL cliente envio el mensaje %s",mensaje);
 	fflush(NULL);
     }
 }
 
-void on_btn_dark_toggled(GtkCheckButton *b) { 
-    gboolean T = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(b));
-    GdkColor color_bg;
-    if(T){
-	
-        //dark background color
-        red_bg =0.0;
-        green_bg=0.0;
-	blue_bg = 0.0;
-        color_bg.red = red_bg;
-        color_bg.green = green_bg;
-        color_bg.blue = blue_bg;
-        gtk_widget_modify_bg(GTK_WIDGET(window),GTK_STATE_NORMAL,&color_bg);
-	//send_background(&color_bg);
-    }else{
-	printf("entra al else \n");
-	red_bg =1.0;
-        green_bg=1.0;
-	blue_bg = 1.0;
-        color_bg.red = red_bg;
-        color_bg.green = green_bg;
-        color_bg.blue = blue_bg;
-        gtk_widget_modify_bg(GTK_WIDGET(window),GTK_STATE_NORMAL,&color_bg);
-    }
+void on_btn_bg_color_set(GtkWidget *c){
+    GdkRGBA color; //es un struct
+    gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(c),&color);
+    red_bg = color.red;  green_bg = color.green; blue_bg = color.blue; alpha = color.alpha;
+    send_select_color_bg();
+}
+//finaliza el hilo listen_Server
+void desconectar()
+{
+	printf("El servidor esta caido: cerrando coneccion\n");
+	stop = 1;
 }
 
 //funcion que ejecuta el hilo que se conecta con el servidor
 void listen_server()
 {
-	
-    /* Recibimos los datos del servidor */
-    if ((numbytes=recv(sockfd, buf, MAXDATASIZE, 0)) == -1)
-    {
-	perror("recv");
-	exit(1);
-    }
-    printf("Recibi del servidor %s\n");
-    //conectado = 0;
-    pthread_exit(0);
+    int i = 0;
+    char tipo;
+    int id;
+    int stop = 0;
 
-}
-
-//envia un evento de movimiento y el punto actual por parte del miembro
-/*void enviar_punto()
-{
-	//printf("ENVIAR %i %i\n",point[0],point[1]);
-
-	if(conect == 1)
+    while(stop == 0){
+	if (recv(sockfd, &buffer, sizeof(buffer), 0) == -1)
 	{
-		if(point[0] > -1){
-			mi_punto.point[0] = point[0];
-			mi_punto.point[1] = point[1]; 
-
-			if (send(sockfd_point, &mi_punto, sizeof(struct point), 0) == -1){
-				desconectar();
-			}
-			fflush(NULL);
-			release = 0;
-		}
-		else if(release == 0){
-			enviar_release();
-			release = 1;
-		}
+		printf("FUNCION PUNTO: NO SE RECIBIERON DATOS DEL CLIENTE %i\n", id);
+		stop = 1;
 
 	}
-}*/
+	else //El servidor envio un cambio echo por un cliente.
+	{
+	    fflush(NULL);
+	    {
+		id = last.id;
+		printf("El cliente %d recibio del servidor el siguiente mensaje: %s \n",sockfd,buffer);
+		procesar_mensaje_recibido();
+		//Actualiza los valores de los dos ultimos puntos del cliente.
+	        last_point[id].id = id;
+		old_point[id].x = last_point[id].x;
+		old_point[id].y = last_point[id].y;
+		switch(last.tipo){
+		    case NEWCOLORPINCEL:
+			usuarios_pizarra[id].red=last.red;
+			usuarios_pizarra[id].green=last.green;
+			usuarios_pizarra[id].blue=last.blue;
+			cambiar_color_pincel(id);
+			break;
+		    case NEWCOLORBG:
+			gdk_threads_enter(); //entra a la seccion critica
+			update_color_bg();
+			gdk_threads_leave(); //deja la seccion critica.
+		    default:
+			break;
+
+		   // case 'NEWBG':
+		}
+	    }
+	}
+	printf("sale de aca el hilo %d",sockfd);
+	conect=0;
+	pthread_exit(0);
+	//limpia el buffer
+	//memset(buffer,'\0',MAXDATASIZE);
+    }
+}
+
+void update_color_bg(){
+    printf("update_color_bg \n");
+    GdkColor color_bg;
+    color_bg.red = red_bg;
+    color_bg.green = green_bg;
+    color_bg.blue = blue_bg;
+    gtk_widget_modify_bg(GTK_WIDGET(window),GTK_STATE_NORMAL,&color_bg);
+}
+
+void procesar_mensaje_recibido(){
+    char value[8];
+    memset(value,'\0',1);
+    char men[1024];
+    strcpy(men,buffer);
+    last.tipo=men[0];
+    printf("estoy en procesar_mensaje recibido el tipo es %c\n",last.tipo);
+
+    int i=2; //saltea tipo|
+    while(men[i]!='|'){
+        value[i-2]=men[i];
+        i++;
+    }
+
+    sscanf(value,"%lf",&last.red);
+    i++; //saltea tipo|red|
+    int j=0;
+    while(men[i]!='|'){
+        value[j]=men[i];
+        i++;
+        j++;
+    }
+
+    sscanf(value,"%lf",&last.green);
+    i++; //saltea tipo|red|green|
+    j=0;
+    while(men[i]!='|'){
+        value[j]=men[i];
+        i++;
+        j++;
+    }
+    sscanf(value,"%lf",&last.blue);
+    i++; //saltea tipo|red|green|blue
+    j=0;
+    while(men[i]!='\0'){
+        value[j]=men[i];
+        i++;
+        j++;
+    }
+    //recorrio tipo|red|green|blue|id
+    sscanf(value,"%d",&last.id);
+}
+
+void cambiar_color_pincel(int id){
+    printf("estoy en cambiar color pincel \n");
+    colores_pinceles_usuarios[id].red = usuarios_pizarra[id].red;
+    colores_pinceles_usuarios[id].green = usuarios_pizarra[id].green;
+    colores_pinceles_usuarios[id].blue = usuarios_pizarra[id].blue;
+    
+    GdkRGBA color; //es un struct
+    color.red =  colores_pinceles_usuarios[id].red;
+    color.green = colores_pinceles_usuarios[id].green;
+    color.blue = colores_pinceles_usuarios[id].blue; 
+    gtk_color_chooser_set_rgba(GTK_COLOR_CHOOSER(color_button),&color);
+}
+
 
 
 void on_btn_conectar_toggled(GtkToggleButton *toggledButton){
@@ -307,59 +425,62 @@ void on_btn_conectar_toggled(GtkToggleButton *toggledButton){
     gboolean T = gtk_toggle_button_get_active(toggledButton);
     //background color
     GdkColor color_bg;
+    int i;
     if(T){
-        gtk_label_set_text(GTK_LABEL(lbl_connect),(const gchar*) "Conectado"); 
-        color_bg.red = 0x0000;
-        color_bg.green = 0xffff;
-        color_bg.blue = 0x0000;  
-        gtk_widget_modify_bg(GTK_WIDGET(lbl_connect),GTK_STATE_NORMAL,&color_bg);
-        
-         /* Creamos el socket */
-        if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-        {
-            perror("socket");
-            exit(1);
-        } 
-	printf("se crea el socket \n");
-
-        /* Establecemos their_addr con la direccion del server */
-        their_addr.sin_family = AF_INET;
-        their_addr.sin_port = htons(PORT);
-
-        their_addr.sin_addr = *((struct in_addr *)he->h_addr);
-		printf("antes de conectarse 1 \n");
-
-        bzero(&(their_addr.sin_zero), 8);
-	printf("antes de conectarse \n");
-
-        if (connect(sockfd, (struct sockaddr *)&their_addr, sizeof(struct sockaddr)) == -1)
-        {
-            perror("connect");
+	if(conect==0){
+	    stop=0;
 	    conect=1;
-            exit(1);
-        }
-        else{
-	    conect = 1;
-	    //creando hilo para escuchar al servidor
-	    status = pthread_create(&t_id, NULL, listen_server, (void*) 0);
-	    //en caso de error
-	    if(status)
-	      //    conectado = 0;
+	    gtk_label_set_text(GTK_LABEL(lbl_connect),(const gchar*) "Conectado"); 
+	    color_bg.red = 0x0000;
+	    color_bg.green = 0xffff;
+	    color_bg.blue = 0x0000;  
+	    gtk_widget_modify_bg(GTK_WIDGET(lbl_connect),GTK_STATE_NORMAL,&color_bg);
 	    
-	    printf("Coneccion establecida\n");
+	     /* Creamos el socket */
+	    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+	    {
+		perror("socket");
+		conect = 0;
+		exit(1);
+	    } 
+
+	    /* Establecemos their_addr con la direccion del server */
+	    their_addr.sin_family = AF_INET;
+	    their_addr.sin_port = htons(PORT);
+
+	    their_addr.sin_addr = *((struct in_addr *)he->h_addr);
+	    bzero(&(their_addr.sin_zero), 8);
+
+	    if (connect(sockfd, (struct sockaddr *)&their_addr, sizeof(struct sockaddr)) == -1)
+	    {
+		perror("connect");
+		conect=0;
+		exit(1);
+	    }
+	    else{
+		printf("sockfd es %d \n",sockfd);
+		conect = 1;
+		//creando hilo para escuchar al servidor
+		status = pthread_create(&t_id, NULL, listen_server, (void*) 0);
+		//en caso de error
+		if(status)
+		    conect = 0;
+		
+		printf("Conexion establecida\n");
+	    }
+	    
+	    
+	    /* Devolvemos recursos al sistema */
+	    //close(sockfd);
 	}
-        
-	
-        /* Devolvemos recursos al sistema */
-        //close(sockfd);
 
     }
     else{
-        gtk_label_set_text(GTK_LABEL(lbl_connect),(const gchar*) "Desconectado");
-        color_bg.red = 0xffff;
-        color_bg.green = 0x0000;
-        color_bg.blue = 0x0000;  
-        gtk_widget_modify_bg(GTK_WIDGET(lbl_connect),GTK_STATE_NORMAL,&color_bg);
+	gtk_label_set_text(GTK_LABEL(lbl_connect),(const gchar*) "Desconectado");
+	color_bg.red = 0xffff;
+	color_bg.green = 0x0000;
+	color_bg.blue = 0x0000;  
+	gtk_widget_modify_bg(GTK_WIDGET(lbl_connect),GTK_STATE_NORMAL,&color_bg);
     }
 }
 
@@ -391,7 +512,7 @@ void configure_GUI(){
     color_button = GTK_WIDGET(gtk_builder_get_object(builder, "color_button"));
     btn_spin = GTK_WIDGET(gtk_builder_get_object(builder, "btn_spin"));
     btn_conectar = GTK_WIDGET(gtk_builder_get_object(builder, "btn_conectar"));
-    btn_dark = GTK_WIDGET(gtk_builder_get_object(builder, "btn_dark"));
+    btn_bg = GTK_WIDGET(gtk_builder_get_object(builder, "btn_bg"));
     box = GTK_WIDGET(gtk_builder_get_object(builder, "box"));
     lbl_connect = GTK_WIDGET(gtk_builder_get_object(builder, "lbl_connect"));
 	
@@ -409,9 +530,9 @@ void configure_GUI(){
     GdkColor color_bg;
     
  
-    color_bg.red = 0xffff;
+    color_bg.red = 0x0000;
     color_bg.green = 0x0000;
-    color_bg.blue = 0x0000;
+    color_bg.blue = 0x6000;
     gtk_widget_modify_bg(GTK_WIDGET(box),GTK_STATE_NORMAL,&color_bg);
 }
 
