@@ -29,7 +29,7 @@ void funcion_hilo_point(int id)
 	char c;
 
 	last_color[id].id = id;
-
+/*
     
 	for(i=0; i<max_clientes; i++)
 	{
@@ -39,7 +39,7 @@ void funcion_hilo_point(int id)
 			if (send(sockets_clientes[id], &last_color[i], sizeof(struct Punto), 0) == -1)
 				perror("send");
 				
-	}
+	}*/
     printf("No hace nada en el primer for \n");
     /*
 	last.tipo = NEWFONDO;
@@ -99,14 +99,19 @@ void funcion_hilo_point(int id)
                 strcat(mensaje,"|");
                 strcat(mensaje,cid);
                 //mensaje = tipo|red|green|blue|id
+                int prueba;
                 for(i=0; i<max_clientes; i++)
                 {
                     
-                    if(sockets_clientes[i]!=-1)
+                    if(sockets_clientes[i]!=-1 && i!=id)
                     {
-                        printf("ENVIANDO NUEVO FONDO %s al cliente %d \n",mensaje,sockets_clientes[i]);
-                        if (send(sockets_clientes[i], &mensaje, sizeof(mensaje), 0) == -1)
+                        printf("ENVIANDO NUEVO FONDO %s al cliente %d con un tamano %d\n",mensaje,i,strlen(mensaje));
+                        prueba = send(sockets_clientes[i], mensaje, strlen(mensaje), 0);
+                        if ( prueba== -1)
                             perror("send");
+                        else
+                            printf("el servidor envio %d bytes \n",prueba);
+                            
                     }
                 
                 }

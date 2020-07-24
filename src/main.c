@@ -1,4 +1,5 @@
 #include <gtk/gtk.h>
+#include <glib.h>
 #define _GNU_SOURCE
 #include <signal.h>
 #include <ctype.h>
@@ -22,7 +23,6 @@
 
 //Variables globales sockets  
 //arreglo de miembros
-struct Punto * usuarios_pizarra;//para almacenar los colores de los miembros (lo distingo de los puntos que son volatiles)
 pthread_t t_id; //hilo de ejecucion que escucha al servidor
 int conect;
 int sockfd, numbytes;
@@ -31,12 +31,18 @@ struct hostent *he; // Se utiliza para convertir el nombre del hosta su direcciÃ
 struct sockaddr_in their_addr; // direcciÃ³n del server donde se conectara 
 char *ip;
 int stop=0;
+
 /*Arreglos de structs para almacenar los puntos de los usuarios*/
 struct Punto *last_point;
 struct Punto *old_point;
-struct Punto *colores_pinceles_usuarios;
+struct Punto * usuarios_pizarra;//para almacenar los colores de los miembros (lo distingo de los puntos que son volatiles)
 
+
+GdkColor **colores_pinceles_usuarios;
+GdkRGBA **pinceles_usuarios;
 struct Punto last;
+
+int draw_other[10];
 //
 
 //Variables globales GUI
@@ -47,6 +53,18 @@ struct Point {
 	double red, green, blue,alpha;
 	struct Point *next;
 } *p1, *p2, *start;
+
+//ultimas modificaciones
+GdkRGBA *pincel=NULL;
+GdkPixbuf *mapa_pixels=NULL;
+GdkColor *c=NULL;
+gint point[2];
+int line_width = 4;
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+//fin ultimas modificaciones.
+
 struct Punto color_pincel;
 GtkWidget  *window;
 GtkWidget  *fixed1;
@@ -94,6 +112,9 @@ int main(int argc, char *argv[]) {
     gdk_threads_init ();
     gdk_threads_enter();
     usuarios_pizarra = (struct Punto*)malloc(sizeof(struct Punto)*max_clientes);
+    pinceles_usuarios = (GdkRGBA*)malloc(sizeof(GdkRGBA *)*max_clientes);
+    colores_pinceles_usuarios = (GdkColor*)malloc(sizeof(GdkColor *)*max_clientes);
+
     //guardan los ultimos 2 puntos de cada miembro para dibujar una recta
     last_point = (struct Punto*)malloc(sizeof(struct Punto)*max_clientes);
     old_point = (struct Punto*)malloc(sizeof(struct Punto)*max_clientes);
@@ -256,7 +277,6 @@ void send_select_color(){
     }
 }
 void send_select_color_bg(){
-	
     if(conect == 1)
     {	
 	
@@ -277,14 +297,17 @@ void send_select_color_bg(){
 	strcat(mensaje,"|");
 	sprintf(ablue,"%lf",blue_bg);
 	strcat(mensaje,ablue);
+	update_color_bg(red_bg,green_bg,blue_bg);
+
 	if (send(sockfd, mensaje, sizeof(mensaje), 0) == -1){
 	    perror("send: ");
 	    exit(EXIT_FAILURE);
 	}
 	
-	printf("send_select_Color_bg EL cliente envio el mensaje %s",mensaje);
+	printf("send_select_Color_bg EL cliente envio el mensaje %s \n",mensaje);
 	fflush(NULL);
     }
+    
 }
 
 void on_btn_bg_color_set(GtkWidget *c){
@@ -307,9 +330,12 @@ void listen_server()
     char tipo;
     int id;
     int stop = 0;
-
     while(stop == 0){
-	if (recv(sockfd, &buffer, sizeof(buffer), 0) == -1)
+	printf("se rompe la verga aca \n");
+
+	printf("se rompe la verga aca 2\n");
+	int num = recv(sockfd, buffer, strlen(buffer), 0);
+	if (num == -1)
 	{
 		printf("FUNCION PUNTO: NO SE RECIBIERON DATOS DEL CLIENTE %i\n", id);
 		stop = 1;
@@ -317,25 +343,28 @@ void listen_server()
 	}
 	else //El servidor envio un cambio echo por un cliente.
 	{
+	    printf("num vale %d \n",num);
 	    fflush(NULL);
 	    {
 		id = last.id;
-		printf("El cliente %d recibio del servidor el siguiente mensaje: %s \n",sockfd,buffer);
+		printf("El cliente recibio del servidor el siguiente mensaje: %s con tamano \n",buffer,strlen(buffer));
+		
 		procesar_mensaje_recibido();
 		//Actualiza los valores de los dos ultimos puntos del cliente.
-	        last_point[id].id = id;
+		last_point[id].id = id;
 		old_point[id].x = last_point[id].x;
 		old_point[id].y = last_point[id].y;
+		
 		switch(last.tipo){
 		    case NEWCOLORPINCEL:
 			usuarios_pizarra[id].red=last.red;
 			usuarios_pizarra[id].green=last.green;
 			usuarios_pizarra[id].blue=last.blue;
-			cambiar_color_pincel(id);
+			//cambiar_color_pincel(id);
 			break;
 		    case NEWCOLORBG:
 			gdk_threads_enter(); //entra a la seccion critica
-			update_color_bg();
+			update_color_bg(last.red,last.blue,last,green);
 			gdk_threads_leave(); //deja la seccion critica.
 		    default:
 			break;
@@ -352,13 +381,15 @@ void listen_server()
     }
 }
 
-void update_color_bg(){
+void update_color_bg(double r_bg,double g_bg, double b_bg){
     printf("update_color_bg \n");
-    GdkColor color_bg;
-    color_bg.red = red_bg;
-    color_bg.green = green_bg;
-    color_bg.blue = blue_bg;
+    GdkRGBA color_bg;
+    color_bg.red = last.red;
+    color_bg.green = last.green;
+    color_bg.blue = last.blue;
+    
     gtk_widget_modify_bg(GTK_WIDGET(window),GTK_STATE_NORMAL,&color_bg);
+
 }
 
 void procesar_mensaje_recibido(){
@@ -403,20 +434,34 @@ void procesar_mensaje_recibido(){
     //recorrio tipo|red|green|blue|id
     sscanf(value,"%d",&last.id);
 }
-
+/*
 void cambiar_color_pincel(int id){
     printf("estoy en cambiar color pincel \n");
-    colores_pinceles_usuarios[id].red = usuarios_pizarra[id].red;
-    colores_pinceles_usuarios[id].green = usuarios_pizarra[id].green;
-    colores_pinceles_usuarios[id].blue = usuarios_pizarra[id].blue;
+    colores_pinceles_usuarios[id]->red = usuarios_pizarra[id].red;
+    colores_pinceles_usuarios[id]->green = usuarios_pizarra[id].green;
+    colores_pinceles_usuarios[id]->blue = usuarios_pizarra[id].blue;
     
-    GdkRGBA color; //es un struct
+    /*GdkRGBA color; //es un struct
     color.red =  colores_pinceles_usuarios[id].red;
     color.green = colores_pinceles_usuarios[id].green;
     color.blue = colores_pinceles_usuarios[id].blue; 
     gtk_color_chooser_set_rgba(GTK_COLOR_CHOOSER(color_button),&color);
+    
+    gdk_color_alloc (gdk_colormap_get_system (), colores_pinceles_usuarios[id]);
+    gdk_gc_set_foreground (pinceles_usuarios[id], colores_pinceles_usuarios[id]);
+    gdk_gc_set_line_attributes(pinceles_usuarios[id],usuarios_pizarra[id].pencil_width,GDK_LINE_SOLID,
+    GDK_CAP_BUTT, GDK_JOIN_ROUND);
 }
-
+*/
+//crea y retorna un GdkGC* que simboliza a un crayon en la libreria
+//debe recibir el mapa de pixeles, las componenetes de color y una instancia de GdkColor *
+GdkRGBA *getPincel (GdkKeymap *mapa_pixels, double n_red, double n_green, double n_blue)
+{	
+	GdkRGBA *color = (GdkRGBA *) g_malloc (sizeof (GdkRGBA)); //es un struct
+	color->red=n_green;  color->green=n_green; color->blue=n_blue;
+	gtk_color_chooser_set_rgba(color_button,color);
+	return (color);
+}
 
 
 void on_btn_conectar_toggled(GtkToggleButton *toggledButton){
@@ -427,6 +472,15 @@ void on_btn_conectar_toggled(GtkToggleButton *toggledButton){
     GdkColor color_bg;
     int i;
     if(T){
+	int i;
+	for(i=0;i<max_clientes;i++)
+	{
+	    draw_other[i] = 0;
+	    //creo crayones para los demas miembros
+	    pinceles_usuarios[i] = getPincel(mapa_pixels,0.0,0.0,1.0);
+	    printf("salgo de esa funcion %d vez \n",i);
+	}
+    
 	if(conect==0){
 	    stop=0;
 	    conect=1;
