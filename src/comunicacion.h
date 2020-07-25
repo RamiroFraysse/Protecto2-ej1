@@ -28,5 +28,4 @@ typedef struct Punto {
 	char tipo;
 	int pencil_width;
 	double red, green, blue,alpha;
-	//struct Punto *next;
 } Punto;

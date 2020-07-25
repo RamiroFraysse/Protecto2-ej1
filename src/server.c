@@ -7,12 +7,12 @@
 #include <string.h>
 #include <pthread.h>
 #include "comunicacion.h"
-#define BACKLOG 10
+#define BACKLOG 100
 
 
 char buffer[MAXDATASIZE];
 int nro_cliente = 0;
-int* sockets_clientes;
+int *sockets_clientes;
 struct Punto* last_color;
 double color_bg_red,color_bg_green,color_bg_blue;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -125,18 +125,19 @@ void funcion_hilo_point(int id)
 				//last_color[id].pencil_width = last.pencil_width;
 				break;
 			    case NEWCOLORBG:
-				
-				color_bg_red = last.red;
-				color_bg_green = last.green;
-				color_bg_blue = last.blue;
-				pthread_mutex_lock(&mutex);
-				//envio el valor del punto a todos los miembros
-				send_new_bg(&last,id);
-				pthread_mutex_unlock(&mutex);
+				{
+					color_bg_red = last.red;
+					color_bg_green = last.green;
+					color_bg_blue = last.blue;
+					pthread_mutex_lock(&mutex);
+					//envio el valor del punto a todos los miembros
+					send_new_bg(&last,id);
+					pthread_mutex_unlock(&mutex);
+			    }
 			    default:
-				break;
+					break;
 			}
-		    }
+		}
 	}
 	printf("El cliente %i abandono la sala\n",id);
 	close(sockets_clientes[id]);
@@ -166,7 +167,7 @@ int main()
 	int sin_size;
 	int i = 0;
 	int status;
-	int actual;
+	int actual=0;
 	struct sockaddr_in clnt_addr;
 	struct sockaddr_in svr_addr;
 	
@@ -182,15 +183,13 @@ int main()
 
 	pthread_t* tid = malloc(sizeof(pthread_t)*max_clientes);
 
-	printf("antes de crear el socket \n");
-
-	//crea el socket
+	//apertura del socket q retorna un descriptor q el sistema asocia con una conexion en red.
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) 
 	{
 		perror("socket");
 		exit(EXIT_FAILURE);
 	}
-	
+	printf("sockfd vale despues de crear el socket %d\n",sockfd);
 	//define familia
 	svr_addr.sin_family = AF_INET;
 	//asigna puerto
@@ -201,32 +200,33 @@ int main()
 	bzero(&(svr_addr.sin_zero), 8);
 	sin_size = sizeof(struct sockaddr_in);
 
-	//se ejecuta y checkea el enlazador (bind)
+	//avisar al sistema operativo q hemos abierto un socket y qremos q asocie nuestro programa al socket
 	if ( bind(sockfd, (struct sockaddr *)&svr_addr, sizeof(struct sockaddr)) == -1){ 
 		perror("bind");
 		exit(EXIT_FAILURE);
 	}
+	//avisa al sistema q empieza a atender conexiones.
 	if (listen(sockfd, BACKLOG) != -1) {	
-		//se ejecuta el listen
-		while(1)//bucle 
+		while(1)
 		{ 
+			//pide y acepta las conexiones de clientes al sistema operativo
 		    if ((newfd = accept(sockfd, (struct sockaddr *)&clnt_addr, &sin_size)) != -1){
-			if((actual = next_cliente())>-1){
-			    sockets_clientes[actual] = newfd;
-			    char* ip = inet_ntoa_my(clnt_addr.sin_addr);
-			    printf("Se establecio una coneccion desde %s, ID miembro: %i\n",ip,actual);
-			    /*se crean el hilo para recibir puntos
-			      pthread_create(&idhilo,NULL,funcionDelHilo,ParemetroFuncion.)*/
-			    status = pthread_create(&tid[actual], NULL, funcion_hilo_point, (void*) actual);
-			    //en caso de error
-			    if(status)
-				  exit(-1);
-			    //si todo sale bien se incrementa el numero de cliente
-			}
+				nro_cliente++;
+				printf("Cantidad de clientes conectados %d\n",nro_cliente);
+				if((actual = next_cliente())>-1){
+					sockets_clientes[actual] = newfd;
+					char* ip = inet_ntoa_my(clnt_addr.sin_addr);
+					printf("Se establecio una conexion desde %s, ID cliente: %i, con identificador socket: %d \n",ip,actual,newfd);
+					status = pthread_create(&tid[actual], NULL, funcion_hilo_point, (void*) actual);
+					printf("status vale: %d \n",status);
+					//en caso de error
+					if(status)
+					  exit(1);
+				}
 		    }else{
-			close(newfd);
-			perror("acept ");
-			printf("ERROR AL ACEPTAR LA CONEXION, MAXIMA CANTIDAD DE MIEMBROS\n");
+				close(newfd);
+				perror("acept ");
+				printf("ERROR AL ACEPTAR LA CONEXION, MAXIMA CANTIDAD DE MIEMBROS\n");
 		    }
 		}//fin del bucle
 	}else{
