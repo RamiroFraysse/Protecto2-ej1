@@ -38,7 +38,7 @@ void send_update(Punto *nuevo,int id){
 }
 
 
-void funcion_hilo_point(int id)
+void* funcion_hilo_point(int id)
 {	
 	printf("Este es el hilo del cliente %d \n",id);
 	//struct Punto last;

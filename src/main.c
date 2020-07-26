@@ -58,6 +58,8 @@ GtkWidget  *btn_conectar;
 GtkWidget  *lbl_connect;
 GtkWidget  *btn_bg;
 GtkWidget  *box;
+GtkWidget  *color_bg_chooser;
+GtkWidget  *color_pen_chooser;
 GtkBuilder *builder; 
 
 double red, green, blue, alpha;
@@ -100,7 +102,6 @@ void on_destroy() {
 */
 gboolean on_draw_area_draw (GtkWidget *widget, cairo_t *cr, gpointer data) {
 
-
     //Establece el ancho de la linea
     cairo_set_line_width(cr, line_width);
 
@@ -112,18 +113,18 @@ gboolean on_draw_area_draw (GtkWidget *widget, cairo_t *cr, gpointer data) {
     p1 = start->next;
 
     while ( p1 != NULL ) {
-	//obtiene el color a pintar 
-	cairo_set_source_rgb(cr, p1->red, p1->green, p1->blue);
+	    //obtiene el color a pintar 
+	    cairo_set_source_rgb(cr, p1->red, p1->green, p1->blue);
 
-	cairo_move_to (cr, (double) old_x, (double) old_y);
-	//dibuja una linea hasta este otro punto.
-	cairo_line_to (cr, (double) p1->x, (double) p1->y);
-	cairo_stroke (cr);
+    	cairo_move_to (cr, (double) old_x, (double) old_y);
+    	//dibuja una linea hasta este otro punto.
+    	cairo_line_to (cr, (double) p1->x, (double) p1->y);
+    	cairo_stroke (cr);
 
-	//actualiza old & p1.
-	old_x = p1->x;
-	old_y =  p1->y;
-	p1 = p1 ->next;
+    	//actualiza old & p1.
+    	old_x = p1->x;
+    	old_y =  p1->y;
+    	p1 = p1->next;
     }
 
     return FALSE;
@@ -139,19 +140,32 @@ gboolean on_draw_area_button_release_event (GtkWidget *widget, GdkEventButton *e
     //  //draw = 0;
     //  //enviar_release();
 	  //}
+    
     return TRUE;
 }
 
 //callback para el evento button_press_event 
 gboolean on_draw_area_button_press_event (GtkWidget *widget, GdkEventButton *event) {
-
+    
     //le pasa la posicion en donde se hizo click.
     draw_brush (widget, event->x, event->y);
     return TRUE;
 }
 
 void on_clear_clicked(GtkWidget *b1) {
-    
+
+    p1 = start;
+    //mientras q p1 is not null
+    while (p1) { 
+	    //libera todo los punteros.
+	    p2 = p1 -> next; 
+	    free(p1); 
+	    p1 = p2; 
+    }
+    start = NULL;
+    //limpia el area de dibujo.
+    gtk_widget_queue_draw (draw_area);
+
     if(conect){
       Punto new;
 	    new.tipo = CLEAR;
@@ -277,7 +291,7 @@ void on_color_button_color_set(GtkWidget *c) {
     }
 }
 
-void on_btn_bg_color_set(GtkWidget /*GtkColorButton*/ *c){
+void on_btn_bg_color_set(GtkWidget *c){
     GdkRGBA color; //es un struct
     gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(c),&color);
     update_color_bg(color.red,color.green,color.blue,color.alpha);
@@ -297,10 +311,6 @@ void desconectar()
 
 void update_color_bg(double r_bg,double g_bg, double b_bg,double a_bg){
     fflush(NULL);
-    
-    //printf("bg red update: %f\n", r_bg);
-    //printf("bg green update: %f\n", g_bg);
-    //printf("bg blue update: %f\n", b_bg);
 
     GdkRGBA cbg;
     cbg.red = r_bg;
@@ -478,7 +488,10 @@ void configure_GUI(){
     btn_conectar = GTK_WIDGET(gtk_builder_get_object(builder, "btn_conectar"));
     btn_bg = GTK_WIDGET(gtk_builder_get_object(builder, "btn_bg"));
     box = GTK_WIDGET(gtk_builder_get_object(builder, "box"));
+    color_bg_chooser = GTK_WIDGET(gtk_builder_get_object(builder, "btn_bg"));
+    color_pen_chooser = GTK_WIDGET(gtk_builder_get_object(builder, "color_button"));
     lbl_connect = GTK_WIDGET(gtk_builder_get_object(builder, "lbl_connect"));
+    
 	
     //no se para que es
     g_object_unref(builder);
@@ -487,21 +500,42 @@ void configure_GUI(){
       los eventos diciendole que podra recibir ciertas cosas del gdk, esta habilitando 
       el movimiento del boton y el presionado del boton para que esten disponibles como 
       eventos y de lo controraio no lo veras.*/
-    gtk_widget_set_events(draw_area, GDK_BUTTON_MOTION_MASK | GDK_BUTTON_PRESS_MASK);
+    gtk_widget_set_events(draw_area, GDK_BUTTON_MOTION_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK);
     gtk_window_set_keep_above (GTK_WINDOW(window), TRUE);
     
-
-    GdkColor cbg;
-    cbg.red = 0x0000;
+    
+    //default background color for window
+    GdkRGBA cbg;
+    cbg.red = 0xffff;
     cbg.green = 0xffff;
-    cbg.blue = 0x0000;
+    cbg.blue = 0xffff;
+    cbg.alpha = 0xffff;
 
-    gtk_widget_modify_bg(GTK_WIDGET(window),GTK_STATE_NORMAL,&cbg);
+    gtk_color_chooser_set_rgba(color_bg_chooser, &cbg);
 
-    //default background color
+    gtk_widget_override_background_color(GTK_WIDGET(window),GTK_STATE_NORMAL,&cbg);
+
+
+    //default background color for pen
+    GdkRGBA pen_color;
+    
+    red = 0x0000;
+    green = 0x0000;
+    blue = 0x0000;
+    alpha = 0xffff;
+    pen_color.red = red;
+    pen_color.green = green;
+    pen_color.blue = blue;
+    pen_color.alpha = alpha;
+
+   
+    gtk_color_chooser_set_rgba(color_pen_chooser, &pen_color);
+
+    gtk_widget_override_background_color(GTK_WIDGET(window),GTK_STATE_NORMAL,&cbg);
+
+    //default background color for box
     GdkColor color_bg;
     
- 
     color_bg.red = 0x0000;
     color_bg.green = 0x0000;
     color_bg.blue = 0x6000;

@@ -21,13 +21,16 @@ GTKLIB=`pkg-config --cflags --libs gtk+-3.0`
 LD=gcc
 LDFLAGS=$(PTHREAD) $(GTKLIB) -export-dynamic
 
-OBJS= main.o
+OBJS= main.o 
 
-all: $(OBJS)
+all: $(OBJS) server
 	$(LD) -o $(TARGET) $(OBJS) $(LDFLAGS)
+
+server : src/server.c
+	gcc -o server src/server.c -lpthread
     
 main.o: src/main.c
 	$(CC) -c $(CCFLAGS) src/main.c $(GTKLIB) -o main.o 
     
 clean:
-	rm -f *.o $(TARGET)
+	rm -f *.o $(TARGET); rm server;
