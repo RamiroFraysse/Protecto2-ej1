@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h> // for open
+#include <unistd.h> // for close
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>

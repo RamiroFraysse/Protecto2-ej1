@@ -1,6 +1,7 @@
 #include <gtk/gtk.h>
 #include <glib.h>
 #define _GNU_SOURCE
+
 #include <signal.h>
 #include <ctype.h>
 #include <sys/mman.h>
@@ -18,30 +19,19 @@
 
 
 //Variables globales sockets  
-//arreglo de miembros
 pthread_t t_id; //hilo de ejecucion que escucha al servidor
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
 int conect;
-char buffer[MAXDATASIZE]; // Buffer donde se reciben los datos
 struct hostent *he; // Se utiliza para convertir el nombre del hosta su dirección IP
 struct sockaddr_in addr; // dirección del server donde se conectara 
-char *ip;
+char *ip;   
 int stop=0;
 int sockfd_point = -1;
 
 
-/*Arreglos de structs para almacenar los puntos de los usuarios*/
-struct Punto *last_point;
-struct Punto *old_point;
-struct Punto * usuarios_pizarra;//para almacenar los colores de los miembros (lo distingo de los puntos que son volatiles)
-
-
-GdkColor **colores_pinceles_usuarios;
-GdkRGBA **pinceles_usuarios;
-struct Punto last;
-
+struct Punto * usuarios_pizarra;//para almacenar los colores de los miembros
 int iniciar_conexion=0;
-int draw_other[10];
-//
 
 //Variables globales GUI
 
@@ -52,14 +42,8 @@ struct Point {
 	struct Point *next;
 } *p1, *p2, *start;
 
-//ultimas modificaciones
-GdkRGBA *pincel=NULL;
-GdkPixbuf *mapa_pixels=NULL;
-GdkColor *c=NULL;
-gint point[2];
 int line_width = 4;
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 //fin ultimas modificaciones.
 
@@ -77,8 +61,7 @@ GtkWidget  *box;
 GtkBuilder *builder; 
 
 double red, green, blue, alpha;
-double red_bg , green_bg, blue_bg, alpha_bg;
-//
+
 
 //funciones
 void on_destroy(); 
@@ -92,6 +75,8 @@ void on_btn_dark_toggled(GtkCheckButton *b);
 void on_btn_conectar_toggled(GtkToggleButton *toggledButton);
 static void draw_brush (GtkWidget *widget, gdouble  x, gdouble  y);
 void configure_GUI();
+void send_new_draw_punto();
+void update_color_bg();
 //
 
 	
@@ -108,17 +93,13 @@ void on_destroy() {
 	close(sockfd_point);
     }
     gtk_main_quit();
-}
+} 
         
 /*
  * Esta es la funcion que se llamara cuando el sistema quiera dibujar en el drawing area
 */
 gboolean on_draw_area_draw (GtkWidget *widget, cairo_t *cr, gpointer data) {
 
-    guint width, height;
-
-    width = gtk_widget_get_allocated_width (widget);
-    height = gtk_widget_get_allocated_height (widget);
 
     //Establece el ancho de la linea
     cairo_set_line_width(cr, 1.0);
@@ -177,7 +158,7 @@ void on_clear_clicked(GtkWidget *b1) {
     gtk_widget_queue_draw (draw_area);
 }
 void borrarTodo() {
-   
+      
 }
 
 /*
@@ -220,7 +201,7 @@ void dibujar(Punto new){
     gtk_widget_queue_draw (draw_area);
 }
 
-send_new_draw_punto(double x, double y){
+void send_new_draw_punto(double x, double y){
     if(conect == 1){
 
 	Punto new;
@@ -287,7 +268,6 @@ void on_btn_bg_color_set(GtkWidget *c){
 
 void desconectar()
 {
-	printf("El servidor esta caido: cerrando coneccion\n");
 	stop = 1;
 }
 
@@ -298,7 +278,7 @@ void update_color_bg(double r_bg,double g_bg, double b_bg){
     cbg.green = g_bg;
     cbg.blue = b_bg;
     
-    gtk_widget_modify_bg(GTK_WIDGET(window),GTK_STATE_NORMAL,&cbg);
+    gtk_widget_modify_bg(GTK_WIDGET(window),GTK_STATE_NORMAL,(GdkColor*)&cbg);
 
 }
 
@@ -327,27 +307,21 @@ void* listen_server(void *args)
 	    fflush(NULL);
 	    {
 		id = update.id;
-		/*
-		//Actualiza los valores de los dos ultimos puntos del cliente.
-		last_point[id].id = id;
-		old_point[id].x = last_point[id].x;
-		old_point[id].y = last_point[id].y;
-		*/
 		switch(update.tipo){
 		    case NEWCOLORPINCEL:
-			usuarios_pizarra[id].red=last.red;
-			usuarios_pizarra[id].green=last.green;
-			usuarios_pizarra[id].blue=last.blue;
+			usuarios_pizarra[id].red=update.red;
+			usuarios_pizarra[id].green=update.green;
+			usuarios_pizarra[id].blue=update.blue;
 			printf("EL usuario %d ahora tiene el color azul %lf \n",id,update.blue);
 			break;
 		    
 		    case NEWCOLORBG:
-			gdk_threads_enter(); //entra a la seccion critica
+			gdk_threads_enter();//entra a la seccion critica
 			update_color_bg(update.red,update.blue,update.green);
 			gdk_threads_leave(); //deja la seccion critica.
 			
 		    case NEWDRAWPOINT:
-			gdk_threads_enter(); //entra a la seccion critica
+			gdk_threads_enter();//entra a la seccion critica
 			dibujar(update);
 			gdk_threads_leave(); //deja la seccion critica.
 		    case CLEAR:
@@ -361,8 +335,7 @@ void* listen_server(void *args)
     }
     conect=0;
     pthread_exit(0);
-    //limpia el buffer
-    //memset(buffer,'\0',MAXDATASIZE);
+   
 }
 
 
@@ -375,23 +348,8 @@ void on_btn_conectar_toggled(GtkToggleButton *toggledButton){
     if(T){
 	if(!iniciar_conexion){
 	    iniciar_conexion = 1;
-	    
-	    //guardan los ultimos 2 puntos de cada miembro para dibujar una recta
-	    last_point = (struct Punto*)malloc(sizeof(struct Punto)*max_clientes);
-	    old_point = (struct Punto*)malloc(sizeof(struct Punto)*max_clientes);
-	    
 	    usuarios_pizarra = (struct Punto*)malloc(sizeof(struct Punto)*max_clientes);
-	    pinceles_usuarios = (GdkRGBA*)malloc(sizeof(GdkRGBA *)*max_clientes);
-	    colores_pinceles_usuarios = (GdkColor*)malloc(sizeof(GdkColor *)*max_clientes);
-	    /*
-	    int i;
-	    for(i=0;i<max_clientes;i++)
-	    {
-		draw_other[i] = 0;
-		//creo crayones para los demas miembros
-		//pinceles_usuarios[i] = getPincel(mapa_pixels,0.0,0.0,1.0);
-		//printf("salgo de esa funcion %d vez \n",i);
-	    }*/
+	    
 	}
 	if(!conect){
 	    int status;
@@ -452,10 +410,6 @@ void on_btn_conectar_toggled(GtkToggleButton *toggledButton){
 
 void configure_GUI(){
     p1 = p2 = start = NULL;
-    
-    red = green = blue = alpha = 0.0;
-    red_bg = green_bg = blue_bg = alpha = 0.0;
-   
     
     //Accediendo al XML file para que lo pueda leer.
     builder = gtk_builder_new();
@@ -518,7 +472,6 @@ int main(int argc, char *argv[]) {
     gdk_threads_init ();
     gdk_threads_enter();   
     gtk_init (&argc, &argv);
-    memset(buffer,'\0',MAXDATASIZE);
     configure_GUI();
     
     // Le dice al sistema que muestre la ventana q tenemos guardada en el puntero window 
