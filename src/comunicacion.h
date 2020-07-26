@@ -3,6 +3,9 @@
 #define DESCONECTAR '0'
 #define NEWCOLORPINCEL '1'
 #define NEWCOLORBG '2'
+#define NEWDRAWPOINT '3'
+#define CLEAR '4'
+
 #define MAXDATASIZE 1024
 
 
@@ -23,8 +26,8 @@ inet_ntoa_my(in)
 
 typedef struct Punto {
 	int id;
-	int x;
-	int y;
+	double x;
+	double y;
 	char tipo;
 	int pencil_width;
 	double red, green, blue,alpha;

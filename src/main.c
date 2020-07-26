@@ -176,6 +176,9 @@ void on_clear_clicked(GtkWidget *b1) {
     //limpia el area de dibujo.
     gtk_widget_queue_draw (draw_area);
 }
+void borrarTodo() {
+   
+}
 
 /*
  *  callback llamado por el evento motion_notify_event
@@ -200,7 +203,41 @@ static void draw_brush (GtkWidget *widget, gdouble x, gdouble y) {
     p1->alpha = alpha;
     p1->next = start;
     start = p1;
+    send_new_draw_punto(x,y);
     gtk_widget_queue_draw (draw_area);
+}
+
+void dibujar(Punto new){
+    p1 = malloc (sizeof(struct Point));
+    if (p1 == NULL) { printf("out of memory\n"); abort(); }
+    p1->x = new.x;
+    p1->y = new.y;
+    p1->red = new.red;
+    p1->green = new.green;
+    p1->blue = new.blue;
+    p1->next = start;
+    start = p1;
+    gtk_widget_queue_draw (draw_area);
+}
+
+send_new_draw_punto(double x, double y){
+    if(conect == 1){
+
+	Punto new;
+	new.tipo=NEWDRAWPOINT;
+	new.red = red;
+	new.green=green;
+	new.blue=blue;
+	new.x=x;
+	new.y=y;
+	printf("new.x es %lf \n",new.x);
+	printf("new.x es %lf \n",new.x);
+	int bytes=send(sockfd_point, &new, sizeof(Punto), 0);
+	if ( bytes== -1){
+	    perror("send: ");
+	    exit(EXIT_FAILURE);
+	}
+    }
 }
 
 void send_select_color_bg(double r, double g, double b){
@@ -220,13 +257,24 @@ void send_select_color_bg(double r, double g, double b){
     
 }
 
-/*
+void send_new_color_pincel(double red,double green,double blue){
+    Punto new;
+    new.tipo = NEWCOLORPINCEL;
+    new.red = red;
+    new.green = green;
+    new.blue = blue;
+    if (send(sockfd_point, &new, sizeof(Punto), 0) == -1){
+	    perror("send: ");
+	    exit(EXIT_FAILURE);
+    }
+}
+
 void on_color_button_color_set(GtkWidget *c) { 
     GdkRGBA color; //es un struct
     gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(c),&color);
     red = color.red;  green = color.green; blue = color.blue; alpha = color.alpha;
-    send_select_color();
-}*/
+    send_new_color_pincel(red,green,blue);
+}
 
 void on_btn_bg_color_set(GtkWidget *c){
     printf("se dispara el evento on_btn_bg_Color_set \n");
@@ -278,26 +326,32 @@ void* listen_server(void *args)
 	{
 	    fflush(NULL);
 	    {
-		//id = last.id;
+		id = update.id;
 		/*
-		procesar_mensaje_recibido();
 		//Actualiza los valores de los dos ultimos puntos del cliente.
 		last_point[id].id = id;
 		old_point[id].x = last_point[id].x;
 		old_point[id].y = last_point[id].y;
 		*/
 		switch(update.tipo){
-		    /*case NEWCOLORPINCEL:
+		    case NEWCOLORPINCEL:
 			usuarios_pizarra[id].red=last.red;
 			usuarios_pizarra[id].green=last.green;
 			usuarios_pizarra[id].blue=last.blue;
-			//cambiar_color_pincel(id);
+			printf("EL usuario %d ahora tiene el color azul %lf \n",id,update.blue);
 			break;
-		    */
+		    
 		    case NEWCOLORBG:
 			gdk_threads_enter(); //entra a la seccion critica
 			update_color_bg(update.red,update.blue,update.green);
 			gdk_threads_leave(); //deja la seccion critica.
+			
+		    case NEWDRAWPOINT:
+			gdk_threads_enter(); //entra a la seccion critica
+			dibujar(update);
+			gdk_threads_leave(); //deja la seccion critica.
+		    case CLEAR:
+			borrarTodo();
 		    default:
 			break;
 		    

@@ -1,5 +1,4 @@
 #include <stdio.h>
-
 #include <stdlib.h>
 #include <sys/types.h> 
 #include <sys/socket.h>
@@ -18,13 +17,13 @@ double color_bg_red,color_bg_green,color_bg_blue;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
-void send_new_bg(Punto *nuevo,int id){
+void send_update(Punto *nuevo,int id){
 	int i,prueba;
 		for(i=0; i<max_clientes; i++){
 		    
 		    if(sockets_clientes[i]!=-1 && i!=id)
 		    {
-			printf("ENVIANDO NUEVO FONDO al cliente %d \n",i);
+			printf("ENVIANDO NUEVO color al cliente %d \n",i);
 			prueba = send(sockets_clientes[i], nuevo, sizeof(Punto), 0);
 			if ( prueba== -1)
 			    perror("send");
@@ -57,13 +56,35 @@ void funcion_hilo_point(int id)
 				stop = 1;
 			}
 			switch(nuevo.tipo){
+				case NEWCOLORPINCEL:
+				{
+					nuevo.id = id;
+					pthread_mutex_lock(&mutex);
+					send_update(&nuevo,id);
+					pthread_mutex_unlock(&mutex);
+
+				}
 			    case NEWCOLORBG:
 				{
+					nuevo.id = id;
 					pthread_mutex_lock(&mutex);
 					//envio el valor del punto a todos los miembros
-					send_new_bg(&nuevo,id);
+					send_update(&nuevo,id);
 					pthread_mutex_unlock(&mutex);
 			    }
+			    case NEWDRAWPOINT:
+				{
+					nuevo.id = id;
+					pthread_mutex_lock(&mutex);
+					//envio el valor del punto a todos los miembros
+					send_update(&nuevo,id);
+					pthread_mutex_unlock(&mutex);
+			    }
+			    case CLEAR:
+					pthread_mutex_lock(&mutex);
+					//envio el valor del punto a todos los miembros
+					send_update(&nuevo,id);
+					pthread_mutex_unlock(&mutex);
 			    default:
 					break;
 			}
