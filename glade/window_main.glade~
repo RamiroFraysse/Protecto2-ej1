@@ -35,6 +35,8 @@
               <object class="GtkGrid">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
+                <property name="margin_top">4</property>
+                <property name="margin_bottom">4</property>
                 <property name="orientation">vertical</property>
                 <child>
                   <object class="GtkColorButton" id="color_button">
@@ -45,14 +47,18 @@
                     <signal name="color-set" handler="on_color_button_color_set" swapped="no"/>
                   </object>
                   <packing>
-                    <property name="left_attach">0</property>
-                    <property name="top_attach">2</property>
+                    <property name="left_attach">1</property>
+                    <property name="top_attach">0</property>
                   </packing>
                 </child>
                 <child>
                   <object class="GtkLabel">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
+                    <property name="halign">center</property>
+                    <property name="valign">center</property>
+                    <property name="margin_left">9</property>
+                    <property name="margin_right">9</property>
                     <property name="label" translatable="yes">pincel</property>
                     <attributes>
                       <attribute name="font-desc" value="Serif 10"/>
@@ -62,17 +68,8 @@
                   </object>
                   <packing>
                     <property name="left_attach">0</property>
-                    <property name="top_attach">1</property>
+                    <property name="top_attach">0</property>
                   </packing>
-                </child>
-                <child>
-                  <placeholder/>
-                </child>
-                <child>
-                  <placeholder/>
-                </child>
-                <child>
-                  <placeholder/>
                 </child>
               </object>
               <packing>
@@ -102,6 +99,8 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
+                <property name="margin_top">4</property>
+                <property name="margin_bottom">4</property>
                 <signal name="clicked" handler="on_clear_clicked" swapped="no"/>
               </object>
               <packing>
@@ -114,6 +113,8 @@
               <object class="GtkGrid">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
+                <property name="margin_top">4</property>
+                <property name="margin_bottom">4</property>
                 <child>
                   <object class="GtkColorButton" id="btn_bg">
                     <property name="visible">True</property>
@@ -122,7 +123,7 @@
                     <signal name="color-set" handler="on_btn_bg_color_set" swapped="no"/>
                   </object>
                   <packing>
-                    <property name="left_attach">0</property>
+                    <property name="left_attach">1</property>
                     <property name="top_attach">0</property>
                   </packing>
                 </child>
@@ -130,6 +131,8 @@
                   <object class="GtkLabel">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
+                    <property name="margin_left">9</property>
+                    <property name="margin_right">9</property>
                     <property name="label" translatable="yes">fondo</property>
                     <attributes>
                       <attribute name="font-desc" value="Serif 10"/>
@@ -138,7 +141,7 @@
                     </attributes>
                   </object>
                   <packing>
-                    <property name="left_attach">1</property>
+                    <property name="left_attach">0</property>
                     <property name="top_attach">0</property>
                   </packing>
                 </child>
@@ -155,6 +158,8 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
+                <property name="margin_top">4</property>
+                <property name="margin_bottom">4</property>
                 <property name="use_stock">True</property>
                 <signal name="toggled" handler="on_btn_conectar_toggled" swapped="no"/>
               </object>
@@ -181,17 +186,17 @@
               </packing>
             </child>
             <child>
-              <object class="GtkButton" id="btn_erase">
-                <property name="label" translatable="yes">Borrar</property>
+              <object class="GtkCheckButton" id="id_erase">
+                <property name="label" translatable="yes"> Borrar</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
-                <property name="receives_default">True</property>
-                <property name="always_show_image">True</property>
-                <signal name="clicked" handler="on_btn_erase_clicked" swapped="no"/>
+                <property name="receives_default">False</property>
+                <property name="draw_indicator">True</property>
+                <signal name="toggled" handler="on_id_erase_toggled" swapped="no"/>
               </object>
               <packing>
                 <property name="expand">False</property>
-                <property name="fill">True</property>
+                <property name="fill">False</property>
                 <property name="position">6</property>
               </packing>
             </child>

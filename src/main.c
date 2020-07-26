@@ -40,7 +40,7 @@ struct Point {
 	int y;
 	double red, green, blue,alpha;
 	struct Point *next;
-} *p1, *p2, *start;
+} *p1, *p2, *start, *end;
 
 double line_width = 1.0;
 
@@ -75,7 +75,7 @@ static void draw_brush (GtkWidget *widget, gdouble x, gdouble y);
 void on_color_button_color_set(GtkWidget *c);
 void on_btn_dark_toggled(GtkCheckButton *b);
 void on_btn_conectar_toggled(GtkToggleButton *toggledButton);
-void on_btn_erase_clicked(GtkToggleButton *toggledButton);
+void on_id_erase_toggled(GtkCheckButton *toggledCheck);
 static void draw_brush (GtkWidget *widget, gdouble  x, gdouble  y);
 void configure_GUI();
 void send_new_draw_punto();
@@ -113,7 +113,8 @@ gboolean on_draw_area_draw (GtkWidget *widget, cairo_t *cr, gpointer data) {
     p1 = start->next;
 
     while ( p1 != NULL ) {
-	    //obtiene el color a pintar 
+	    //obtiene el color a pintar
+      
 	    cairo_set_source_rgb(cr, p1->red, p1->green, p1->blue);
 
     	cairo_move_to (cr, (double) old_x, (double) old_y);
@@ -133,13 +134,7 @@ gboolean on_draw_area_draw (GtkWidget *widget, cairo_t *cr, gpointer data) {
 //se ejecuta ante un evento de release e indica que debe dejar de dibujarse ante un motion event
 gboolean on_draw_area_button_release_event (GtkWidget *widget, GdkEventButton *event)
 {
-    //printf("release_event\n");
-    //if (event->button == 1)// && pixmap != NULL)    //  draw_brush (widget, event->x, event->y);
-	  //{
-	  //  //boolean = 0;
-    //  //draw = 0;
-    //  //enviar_release();
-	  //}
+    
     
     return TRUE;
 }
@@ -163,6 +158,7 @@ void on_clear_clicked(GtkWidget *b1) {
 	    p1 = p2; 
     }
     start = NULL;
+    end = NULL;
     //limpia el area de dibujo.
     gtk_widget_queue_draw (draw_area);
 
@@ -187,6 +183,7 @@ void borrarTodo() {
 	    p1 = p2; 
     }
     start = NULL;
+    end = NULL;
     //limpia el area de dibujo.
     gtk_widget_queue_draw (draw_area);
 }
@@ -212,6 +209,33 @@ static void draw_brush (GtkWidget *widget, gdouble x, gdouble y) {
     p1->green = green;
     p1->blue = blue;
     p1->alpha = alpha;
+    p1->next = NULL;    
+
+    if( start == NULL && end == NULL ){
+      p1->next = end;
+      end = p1;    
+      start =  p1;
+      
+    }else{
+      end->next = p1;
+      end = p1;      
+    }
+    //start = p1;
+    send_new_draw_punto(x,y);
+    gtk_widget_queue_draw (draw_area);
+}
+
+
+static void draw_brush_original (GtkWidget *widget, gdouble x, gdouble y) {
+
+    p1 = malloc (sizeof(struct Point));
+    if (p1 == NULL) { printf("out of memory\n"); abort(); }
+    p1->x = x;
+    p1->y = y;
+    p1->red = red;
+    p1->green = green;
+    p1->blue = blue;
+    p1->alpha = alpha;
     p1->next = start;
     start = p1;
     send_new_draw_punto(x,y);
@@ -219,6 +243,7 @@ static void draw_brush (GtkWidget *widget, gdouble x, gdouble y) {
 }
 
 void dibujar(Punto new){
+    
     p1 = malloc (sizeof(struct Point));
     if (p1 == NULL) { printf("out of memory\n"); abort(); }
     p1->x = new.x;
@@ -226,8 +251,20 @@ void dibujar(Punto new){
     p1->red = new.red;
     p1->green = new.green;
     p1->blue = new.blue;
-    p1->next = start;
-    start = p1;
+    p1->alpha = new.alpha;
+    p1->next = NULL;    
+
+    if( start == NULL && end == NULL ){
+      p1->next = end;
+      end = p1;    
+      start =  p1;
+      
+    }else{
+      end->next = p1;
+      end = p1;      
+    }
+    //start = p1;
+    //send_new_draw_punto(x,y);
     gtk_widget_queue_draw (draw_area);
 }
 
@@ -318,6 +355,7 @@ void update_color_bg(double r_bg,double g_bg, double b_bg,double a_bg){
     cbg.blue = b_bg;
     cbg.alpha = a_bg;    
 
+    gtk_color_chooser_set_rgba(color_bg_chooser, &cbg);
     gtk_widget_override_background_color(GTK_WIDGET(window),GTK_STATE_NORMAL,&cbg);
 
 }
@@ -458,12 +496,31 @@ void on_btn_conectar_toggled(GtkToggleButton *toggledButton){
 }
 
 
-void on_btn_erase_clicked(GtkToggleButton *toggledButton){
-	printf("CLICK EN BORRAR\n");
+void on_id_erase_toggled(GtkCheckButton *toggledCheck){
+
+  gboolean isEraseActive = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(toggledCheck));
+  GdkRGBA color;
+  gdouble val;
+  
+  if(isEraseActive){
+    // Pinto del color del fondo
+    gtk_color_chooser_get_rgba(color_bg_chooser, &color);
+    red = color.red;
+    green = color.green;
+    blue = color.blue;
+    alpha = color.alpha;
+  }else{
+    gtk_color_chooser_get_rgba(color_pen_chooser, &color);
+    red = color.red;
+    green = color.green;
+    blue = color.blue;
+    alpha = color.alpha;
+  }
+  
 }
 
 void configure_GUI(){
-    p1 = p2 = start = NULL;
+    p1 = p2 = start = end = NULL;
     
     //Accediendo al XML file para que lo pueda leer.
     builder = gtk_builder_new();
@@ -503,6 +560,8 @@ void configure_GUI(){
     gtk_widget_set_events(draw_area, GDK_BUTTON_MOTION_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK);
     gtk_window_set_keep_above (GTK_WINDOW(window), TRUE);
     
+    // Ancho de linea inicial
+    gtk_spin_button_set_value(btn_spin, 2);
     
     //default background color for window
     GdkRGBA cbg;
@@ -536,9 +595,9 @@ void configure_GUI(){
     //default background color for box
     GdkColor color_bg;
     
-    color_bg.red = 0x0000;
-    color_bg.green = 0x0000;
-    color_bg.blue = 0x6000;
+    color_bg.red = 0xaaaa;
+    color_bg.green = 0xaaaa;
+    color_bg.blue = 0xaaaa;
     gtk_widget_modify_bg(GTK_WIDGET(box),GTK_STATE_NORMAL,&color_bg);
 }
 
