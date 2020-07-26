@@ -42,7 +42,7 @@ struct Point {
 	struct Point *next;
 } *p1, *p2, *start;
 
-int line_width = 4;
+double line_width = 1.0;
 
 
 //fin ultimas modificaciones.
@@ -102,7 +102,7 @@ gboolean on_draw_area_draw (GtkWidget *widget, cairo_t *cr, gpointer data) {
 
 
     //Establece el ancho de la linea
-    cairo_set_line_width(cr, 1.0);
+    cairo_set_line_width(cr, line_width);
 
     if (start == NULL) return FALSE;
 
@@ -211,8 +211,6 @@ void send_new_draw_punto(double x, double y){
 	new.blue=blue;
 	new.x=x;
 	new.y=y;
-	printf("new.x es %lf \n",new.x);
-	printf("new.x es %lf \n",new.x);
 	int bytes=send(sockfd_point, &new, sizeof(Punto), 0);
 	if ( bytes== -1){
 	    perror("send: ");
@@ -221,7 +219,7 @@ void send_new_draw_punto(double x, double y){
     }
 }
 
-void send_select_color_bg(double r, double g, double b){
+void send_select_color_bg(double r, double g, double b,double a){
     if(conect == 1)
     {	
 	Punto color_bg;
@@ -229,6 +227,7 @@ void send_select_color_bg(double r, double g, double b){
 	color_bg.red = r;
 	color_bg.green = g;
 	color_bg.blue = b;
+	color_bg.alpha = a;
 
 	if (send(sockfd_point, &color_bg, sizeof(Punto), 0) == -1){
 	    perror("send: ");
@@ -258,12 +257,15 @@ void on_color_button_color_set(GtkWidget *c) {
 }
 
 void on_btn_bg_color_set(GtkWidget *c){
-    printf("se dispara el evento on_btn_bg_Color_set \n");
     GdkRGBA color; //es un struct
     gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(c),&color);
-    printf("Color rojo %lf, verde %lf, azul %lf \n",color.red,color.green,color.blue);	
-    update_color_bg(color.red,color.green,color.blue);
-    send_select_color_bg(color.red,color.green,color.blue);
+    update_color_bg(color.red,color.green,color.blue,color.alpha);
+    send_select_color_bg(color.red,color.green,color.blue,color.alpha);
+}
+
+void on_btn_spin_value_changed(GtkButton *b){
+    gdouble val = gtk_spin_button_get_value(GTK_SPIN_BUTTON(btn_spin)); 
+    line_width = val;
 }
 
 void desconectar()
@@ -272,13 +274,16 @@ void desconectar()
 }
 
 
-void update_color_bg(double r_bg,double g_bg, double b_bg){
+void update_color_bg(double r_bg,double g_bg, double b_bg,double a_bg){
+    fflush(NULL);
+    
     GdkRGBA cbg;
     cbg.red = r_bg;
     cbg.green = g_bg;
     cbg.blue = b_bg;
+    cbg.alpha = a_bg;
     
-    gtk_widget_modify_bg(GTK_WIDGET(window),GTK_STATE_NORMAL,(GdkColor*)&cbg);
+    gtk_widget_modify_bg(GTK_WIDGET(window),GTK_STATE_NORMAL,(GdkRGBA*)&cbg);
 
 }
 
@@ -317,15 +322,21 @@ void* listen_server(void *args)
 		    
 		    case NEWCOLORBG:
 			gdk_threads_enter();//entra a la seccion critica
-			update_color_bg(update.red,update.blue,update.green);
+			update_color_bg(update.red,update.blue,update.green,update.alpha);
 			gdk_threads_leave(); //deja la seccion critica.
 			
 		    case NEWDRAWPOINT:
 			gdk_threads_enter();//entra a la seccion critica
 			dibujar(update);
 			gdk_threads_leave(); //deja la seccion critica.
+		    
 		    case CLEAR:
 			borrarTodo();
+			
+		    /*case NEWLINEWIDTH:
+			gdk_threads_enter();//entra a la seccion critica
+			line_width = update.x;
+			gdk_threads_leave(); //deja la seccion critica.*/
 		    default:
 			break;
 		    

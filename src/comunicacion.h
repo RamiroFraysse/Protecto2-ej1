@@ -5,6 +5,7 @@
 #define NEWCOLORBG '2'
 #define NEWDRAWPOINT '3'
 #define CLEAR '4'
+#define NEWLINEWIDTH '5'
 
 #define MAXDATASIZE 1024
 

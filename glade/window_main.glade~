@@ -40,6 +40,11 @@
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="label" translatable="yes">pincel</property>
+                    <attributes>
+                      <attribute name="font-desc" value="Serif 10"/>
+                      <attribute name="foreground" value="#ffffffffffff"/>
+                      <attribute name="background" value="#000000000000"/>
+                    </attributes>
                   </object>
                   <packing>
                     <property name="left_attach">1</property>
@@ -101,6 +106,11 @@
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="label" translatable="yes">fondo</property>
+                    <attributes>
+                      <attribute name="font-desc" value="Serif 10"/>
+                      <attribute name="foreground" value="#ffffffffffff"/>
+                      <attribute name="background" value="#000000000000"/>
+                    </attributes>
                   </object>
                   <packing>
                     <property name="left_attach">1</property>
@@ -148,6 +158,11 @@
               <object class="GtkLabel" id="lbl_connect">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
+                <attributes>
+                  <attribute name="font-desc" value="Serif 10"/>
+                  <attribute name="foreground" value="#ffffffffffff"/>
+                  <attribute name="background" value="#000000000000"/>
+                </attributes>
               </object>
               <packing>
                 <property name="expand">False</property>

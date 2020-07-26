@@ -37,6 +37,7 @@ void send_update(Punto *nuevo,int id){
 	
 }
 
+
 void funcion_hilo_point(int id)
 {	
 	printf("Este es el hilo del cliente %d \n",id);
@@ -85,6 +86,10 @@ void funcion_hilo_point(int id)
 			    case CLEAR:
 					pthread_mutex_lock(&mutex);
 					//envio el valor del punto a todos los miembros
+					send_update(&nuevo,id);
+					pthread_mutex_unlock(&mutex);
+				case NEWLINEWIDTH:
+					pthread_mutex_lock(&mutex);
 					send_update(&nuevo,id);
 					pthread_mutex_unlock(&mutex);
 			    default:
