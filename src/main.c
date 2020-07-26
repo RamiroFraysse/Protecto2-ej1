@@ -4,10 +4,6 @@
 #include <signal.h>
 #include <ctype.h>
 #include <sys/mman.h>
-
-#define MAXDATASIZE 2048
-#define TOPEPRUEBAS 10
-
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -98,9 +94,19 @@ static void draw_brush (GtkWidget *widget, gdouble  x, gdouble  y);
 void configure_GUI();
 //
 
-
+	
 
 void on_destroy() {
+    if(sockfd_point!=-1){
+	stop = 1;
+	Punto cerrar;
+	cerrar.tipo=DESCONECTAR;
+
+	if (send(sockfd_point, &cerrar, sizeof(Punto), 0) == -1)
+		printf("Error la comunicarse con el servidor\n");
+	stop = 1;
+	close(sockfd_point);
+    }
     gtk_main_quit();
 }
         
@@ -197,34 +203,19 @@ static void draw_brush (GtkWidget *widget, gdouble x, gdouble y) {
     gtk_widget_queue_draw (draw_area);
 }
 
-void send_select_color_bg(){
+void send_select_color_bg(double r, double g, double b){
     if(conect == 1)
     {	
-	char mensaje[MAXDATASIZE];
-	memset(mensaje,'\0',1);
-	char tipo[1],ared[8],ablue[8],agreen[8];
-	memset(ared,'\0',1);
-	memset(ablue,'\0',1);
-	memset(agreen,'\0',1);
-	tipo[0]= NEWCOLORBG;
-	strcpy(mensaje,tipo);
-	strcat(mensaje,"|");
-	sprintf(ared,"%lf",red_bg);
-	strcat(mensaje,ared);
-	strcat(mensaje,"|");
-	sprintf(agreen,"%lf",green_bg);
-	strcat(mensaje,agreen);
-	strcat(mensaje,"|");
-	sprintf(ablue,"%lf",blue_bg);
-	strcat(mensaje,ablue);
+	Punto color_bg;
+	color_bg.tipo = NEWCOLORBG;
+	color_bg.red = r;
+	color_bg.green = g;
+	color_bg.blue = b;
 
-	if (send(sockfd_point, mensaje, sizeof(mensaje), 0) == -1){
+	if (send(sockfd_point, &color_bg, sizeof(Punto), 0) == -1){
 	    perror("send: ");
 	    exit(EXIT_FAILURE);
-	}
-	
-	printf("send_select_Color_bg EL cliente envio el mensaje %s \n",mensaje);
-	fflush(NULL);
+	}	
     }
     
 }
@@ -243,9 +234,9 @@ void on_btn_bg_color_set(GtkWidget *c){
     gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(c),&color);
     printf("Color rojo %lf, verde %lf, azul %lf \n",color.red,color.green,color.blue);	
     update_color_bg(color.red,color.green,color.blue);
-    send_select_color_bg();
+    send_select_color_bg(color.red,color.green,color.blue);
 }
-//finaliza el hilo listen_Server
+
 void desconectar()
 {
 	printf("El servidor esta caido: cerrando coneccion\n");
@@ -254,7 +245,6 @@ void desconectar()
 
 
 void update_color_bg(double r_bg,double g_bg, double b_bg){
-    printf("update_color_bg red es %lf \n",r_bg);
     GdkRGBA cbg;
     cbg.red = r_bg;
     cbg.green = g_bg;
@@ -264,88 +254,20 @@ void update_color_bg(double r_bg,double g_bg, double b_bg){
 
 }
 
-void procesar_mensaje_recibido(){
-    char value[8];
-    memset(value,'\0',1);
-    char men[1024];
-    strcpy(men,buffer);
-    last.tipo=men[0];
-    printf("estoy en procesar_mensaje recibido el tipo es %c\n",last.tipo);
 
-    int i=2; //saltea tipo|
-    while(men[i]!='|'){
-        value[i-2]=men[i];
-        i++;
-    }
-
-    sscanf(value,"%lf",&last.red);
-    i++; //saltea tipo|red|
-    int j=0;
-    while(men[i]!='|'){
-        value[j]=men[i];
-        i++;
-        j++;
-    }
-
-    sscanf(value,"%lf",&last.green);
-    i++; //saltea tipo|red|green|
-    j=0;
-    while(men[i]!='|'){
-        value[j]=men[i];
-        i++;
-        j++;
-    }
-    sscanf(value,"%lf",&last.blue);
-    i++; //saltea tipo|red|green|blue
-    j=0;
-    while(men[i]!='\0'){
-        value[j]=men[i];
-        i++;
-        j++;
-    }
-    //recorrio tipo|red|green|blue|id
-    sscanf(value,"%d",&last.id);
-}
-/*
-void cambiar_color_pincel(int id){
-    printf("estoy en cambiar color pincel \n");
-    colores_pinceles_usuarios[id]->red = usuarios_pizarra[id].red;
-    colores_pinceles_usuarios[id]->green = usuarios_pizarra[id].green;
-    colores_pinceles_usuarios[id]->blue = usuarios_pizarra[id].blue;
-    
-    /*GdkRGBA color; //es un struct
-    color.red =  colores_pinceles_usuarios[id].red;
-    color.green = colores_pinceles_usuarios[id].green;
-    color.blue = colores_pinceles_usuarios[id].blue; 
-    gtk_color_chooser_set_rgba(GTK_COLOR_CHOOSER(color_button),&color);
-    
-    gdk_color_alloc (gdk_colormap_get_system (), colores_pinceles_usuarios[id]);
-    gdk_gc_set_foreground (pinceles_usuarios[id], colores_pinceles_usuarios[id]);
-    gdk_gc_set_line_attributes(pinceles_usuarios[id],usuarios_pizarra[id].pencil_width,GDK_LINE_SOLID,
-    GDK_CAP_BUTT, GDK_JOIN_ROUND);
-}
-*/
-//crea y retorna un GdkGC* que simboliza a un crayon en la libreria
-//debe recibir el mapa de pixeles, las componenetes de color y una instancia de GdkColor *
-GdkRGBA *getPincel (GdkKeymap *mapa_pixels, double n_red, double n_green, double n_blue)
-{	
-	GdkRGBA *color = (GdkRGBA *) g_malloc (sizeof (GdkRGBA)); //es un struct
-	color->red=n_green;  color->green=n_green; color->blue=n_blue;
-	gtk_color_chooser_set_rgba(color_button,color);
-	return (color);
-}
 
 //funcion que ejecuta el hilo que se conecta con el servidor
-void listen_server()
+void* listen_server(void *args)
 {
+    
     int i = 0;
+    
     char tipo;
     int id;
     int stop = 0;
     while(!stop){
-	printf("stop es %d \n",stop);
-	int num = recv(sockfd_point, buffer, strlen(buffer), 0);
-	printf("num bytes recibidos %d \n",num);
+	Punto update;
+	int num = recv(sockfd_point, &update, sizeof(Punto), 0);
 	if (num == -1){
 		perror("recv");
 		printf("FUNCION PUNTO: NO SE RECIBIERON DATOS DEL CLIENTE %i\n", id);
@@ -356,29 +278,29 @@ void listen_server()
 	{
 	    fflush(NULL);
 	    {
-		id = last.id;
-		printf("El cliente recibio del servidor el siguiente mensaje: %s con tamano \n",buffer,strlen(buffer));
-		
+		//id = last.id;
+		/*
 		procesar_mensaje_recibido();
 		//Actualiza los valores de los dos ultimos puntos del cliente.
 		last_point[id].id = id;
 		old_point[id].x = last_point[id].x;
 		old_point[id].y = last_point[id].y;
-		
-		switch(last.tipo){
-		    case NEWCOLORPINCEL:
+		*/
+		switch(update.tipo){
+		    /*case NEWCOLORPINCEL:
 			usuarios_pizarra[id].red=last.red;
 			usuarios_pizarra[id].green=last.green;
 			usuarios_pizarra[id].blue=last.blue;
 			//cambiar_color_pincel(id);
 			break;
+		    */
 		    case NEWCOLORBG:
 			gdk_threads_enter(); //entra a la seccion critica
-			update_color_bg(last.red,last.blue,last.green);
+			update_color_bg(update.red,update.blue,update.green);
 			gdk_threads_leave(); //deja la seccion critica.
 		    default:
 			break;
-
+		    
 		}
 	    }
 	}

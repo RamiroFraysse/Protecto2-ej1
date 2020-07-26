@@ -18,69 +18,14 @@ double color_bg_red,color_bg_green,color_bg_blue;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
-void procesar_mensaje_recibido(struct Punto *last,int id){
-    last->id=id;
-    char value[8];
-    memset(value,'\0',1);
-    char men[1024];
-    strcpy(men,buffer);
-    last->tipo=men[0];
-    
-    int i=2; //saltea tipo|
-    while(men[i]!='|'){
-        value[i-2]=men[i];
-        i++;
-    }
-    sscanf(value,"%lf",&last->red);
-    i++; //saltea tipo|red|
-    int j=0;
-    while(men[i]!='|'){
-        value[j]=men[i];
-        i++;
-        j++;
-    }
-    sscanf(value,"%lf",&last->green);
-    i++; //saltea tipo|red|green|
-    j=0;
-    while(men[i]!='\0'){
-        value[j]=men[i];
-        i++;
-        j++;
-    }
-    sscanf(value,"%lf",&last->blue);
-    //mensaje = tipo|red|green|blue|id
-}
-
-void send_new_bg(struct Punto *last,int id){
-	printf("id es %d \n",id);
-	char mensaje[MAXDATASIZE];
-	memset(mensaje,'\0',1);
-	char tipo[1],ared[8],ablue[8],agreen[8],cid[1];
-	memset(ared,'\0',1);
-	memset(ablue,'\0',1);
-	memset(agreen,'\0',1);
-	tipo[0]= NEWCOLORBG;
-	strcpy(mensaje,tipo);
-	strcat(mensaje,"|");
-	sprintf(ared,"%lf",last->red);
-	strcat(mensaje,ared);
-	strcat(mensaje,"|");
-	sprintf(agreen,"%lf",last->green);
-	strcat(mensaje,agreen);
-	strcat(mensaje,"|");
-	sprintf(ablue,"%lf",last->blue);
-	strcat(mensaje,ablue);
-	strcat(mensaje,"|");
-	sprintf(cid,"%d",last->id);
-	strcat(mensaje,cid);
-	printf("el mensaje a enviar es %s hecho por %d o %d\n",mensaje,last->id,id);
+void send_new_bg(Punto *nuevo,int id){
 	int i,prueba;
 		for(i=0; i<max_clientes; i++){
 		    
 		    if(sockets_clientes[i]!=-1 && i!=id)
 		    {
-			printf("ENVIANDO NUEVO FONDO %s al cliente %d con un tamano %d\n",mensaje,i,strlen(mensaje));
-			prueba = send(sockets_clientes[i], mensaje, strlen(mensaje), 0);
+			printf("ENVIANDO NUEVO FONDO al cliente %d \n",i);
+			prueba = send(sockets_clientes[i], nuevo, sizeof(Punto), 0);
 			if ( prueba== -1)
 			    perror("send");
 			else
@@ -94,44 +39,29 @@ void send_new_bg(struct Punto *last,int id){
 void funcion_hilo_point(int id)
 {	
 	printf("Este es el hilo del cliente %d \n",id);
-	struct Punto last;
+	//struct Punto last;
 	int i = 0;
 	char tipo;
 	int stop = 0;
 	char c;
-	last_color[id].id = id;
+	//last_color[id].id = id;
 	while(stop == 0){
-		printf("stop es %d \n",stop);
-		if (recv(sockets_clientes[id], &buffer, sizeof(buffer), 0) == -1){
+		Punto nuevo;
+		if (recv(sockets_clientes[id], &nuevo, sizeof(Punto), 0) == -1){
 			printf("FUNCION PUNTO: NO SE RECIBIERON DATOS DEL CLIENTE %d \n", id);
 			stop = 1;
 		}else //El servidor recibio un cambio.
 		{
 			fflush(NULL);
-			procesar_mensaje_recibido(&last,id);
-			printf("El servidor recibio un cambio hecho por el cliente %d: %s \n",id,buffer);
-			if(last.tipo == DESCONECTAR){
+			if(nuevo.tipo == DESCONECTAR){
 				stop = 1;
 			}
-			
-			switch(last.tipo){
-			    case NEWCOLORPINCEL:
-				last.id = id;
-				last_color[id].tipo = NEWCOLORPINCEL;
-				last_color[id].red = last.red;
-				last_color[id].green = last.green;
-				last_color[id].blue = last.blue;
-				printf("entro al case que corresponde \n");
-				//last_color[id].pencil_width = last.pencil_width;
-				break;
+			switch(nuevo.tipo){
 			    case NEWCOLORBG:
 				{
-					color_bg_red = last.red;
-					color_bg_green = last.green;
-					color_bg_blue = last.blue;
 					pthread_mutex_lock(&mutex);
 					//envio el valor del punto a todos los miembros
-					send_new_bg(&last,id);
+					send_new_bg(&nuevo,id);
 					pthread_mutex_unlock(&mutex);
 			    }
 			    default:
@@ -139,15 +69,11 @@ void funcion_hilo_point(int id)
 			}
 		}
 	}
-	printf("El cliente %i abandono la sala\n",id);
+	printf("El cliente %i abandono la pizarra\n",id);
 	close(sockets_clientes[id]);
-	sockets_clientes[id] = -1; //marco
-	
-	//lock
+	sockets_clientes[id] = -1; 
 	nro_cliente--;
-	//unlock
 	pthread_exit(0);
-
 }
 
 int next_cliente()
