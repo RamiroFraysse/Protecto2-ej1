@@ -132,13 +132,13 @@ gboolean on_draw_area_draw (GtkWidget *widget, cairo_t *cr, gpointer data) {
 //se ejecuta ante un evento de release e indica que debe dejar de dibujarse ante un motion event
 gboolean on_draw_area_button_release_event (GtkWidget *widget, GdkEventButton *event)
 {
-    printf("release_event\n");
-    if (event->button == 1)// && pixmap != NULL)    //  draw_brush (widget, event->x, event->y);
-	  {
-	    //boolean = 0;
-      //draw = 0;
-      //enviar_release();
-	  }
+    //printf("release_event\n");
+    //if (event->button == 1)// && pixmap != NULL)    //  draw_brush (widget, event->x, event->y);
+	  //{
+	  //  //boolean = 0;
+    //  //draw = 0;
+    //  //enviar_release();
+	  //}
     return TRUE;
 }
 
@@ -151,20 +151,30 @@ gboolean on_draw_area_button_press_event (GtkWidget *widget, GdkEventButton *eve
 }
 
 void on_clear_clicked(GtkWidget *b1) {
+    
+    if(conect){
+      Punto new;
+	    new.tipo = CLEAR;
+	    int bytes=send(sockfd_point, &new, sizeof(Punto), 0);
+	    if ( bytes== -1){
+	      perror("send clear: ");
+	      exit(EXIT_FAILURE);
+	    }
+    }
+}
+
+void borrarTodo() {
     p1 = start;
     //mientras q p1 is not null
     while (p1) { 
-	//libera todo los punteros.
-	p2 = p1 -> next; 
-	free(p1); 
-	p1 = p2; 
+	    //libera todo los punteros.
+	    p2 = p1 -> next; 
+	    free(p1); 
+	    p1 = p2; 
     }
     start = NULL;
     //limpia el area de dibujo.
     gtk_widget_queue_draw (draw_area);
-}
-void borrarTodo() {
-      
 }
 
 /*
@@ -250,7 +260,7 @@ void send_new_color_pincel(double red,double green,double blue){
     new.green = green;
     new.blue = blue;
     if (send(sockfd_point, &new, sizeof(Punto), 0) == -1){
-	    perror("senddddd: ");
+	    perror("send: ");
 	    exit(EXIT_FAILURE);
     }
 }
@@ -326,32 +336,37 @@ void* listen_server(void *args)
 	    {
 		id = update.id;
 		switch(update.tipo){
-		    case NEWCOLORPINCEL:
-			usuarios_pizarra[id].red=update.red;
-			usuarios_pizarra[id].green=update.green;
-			usuarios_pizarra[id].blue=update.blue;
-			printf("EL usuario %d ahora tiene el color azul %lf \n",id,update.blue);
-			break;
+		  case NEWCOLORPINCEL:
+			  usuarios_pizarra[id].red=update.red;
+			  usuarios_pizarra[id].green=update.green;
+			  usuarios_pizarra[id].blue=update.blue;
+			  printf("EL usuario %d ahora tiene el color azul %lf \n",id,update.blue);
+			  break;
 		    
-		    case NEWCOLORBG:
-			gdk_threads_enter();//entra a la seccion critica
-			update_color_bg(update.red,update.green,update.blue,update.alpha);
-			gdk_threads_leave(); //deja la seccion critica.
-			
-		    case NEWDRAWPOINT:
-			gdk_threads_enter();//entra a la seccion critica
-			dibujar(update);
-			gdk_threads_leave(); //deja la seccion critica.
-		    
-		    case CLEAR:
-			borrarTodo();
-			
+		  case NEWCOLORBG:
+			  gdk_threads_enter();//entra a la seccion critica
+			  update_color_bg(update.red,update.green,update.blue,update.alpha);
+			  gdk_threads_leave(); //deja la seccion critica.
+        break;			
+
+		  case NEWDRAWPOINT:
+			  gdk_threads_enter();//entra a la seccion critica
+			  dibujar(update);
+			  gdk_threads_leave(); //deja la seccion critica.
+        break;		    
+
+		  case CLEAR:
+        gdk_threads_enter();//entra a la seccion critica
+			  borrarTodo();
+			  gdk_threads_leave(); //deja la seccion critica.
+        break;			  
+
 		    /*case NEWLINEWIDTH:
 			gdk_threads_enter();//entra a la seccion critica
 			line_width = update.x;
 			gdk_threads_leave(); //deja la seccion critica.*/
-		    default:
-			break;
+		  default:
+			  break;
 		    
 		}
 	    }
