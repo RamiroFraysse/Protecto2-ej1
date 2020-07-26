@@ -73,11 +73,11 @@ static void draw_brush (GtkWidget *widget, gdouble x, gdouble y);
 void on_color_button_color_set(GtkWidget *c);
 void on_btn_dark_toggled(GtkCheckButton *b);
 void on_btn_conectar_toggled(GtkToggleButton *toggledButton);
+void on_btn_erase_clicked(GtkToggleButton *toggledButton);
 static void draw_brush (GtkWidget *widget, gdouble  x, gdouble  y);
 void configure_GUI();
 void send_new_draw_punto();
 void update_color_bg();
-//
 
 	
 
@@ -133,6 +133,12 @@ gboolean on_draw_area_draw (GtkWidget *widget, cairo_t *cr, gpointer data) {
 gboolean on_draw_area_button_release_event (GtkWidget *widget, GdkEventButton *event)
 {
     printf("release_event\n");
+    if (event->button == 1)// && pixmap != NULL)    //  draw_brush (widget, event->x, event->y);
+	  {
+	    //boolean = 0;
+      //draw = 0;
+      //enviar_release();
+	  }
     return TRUE;
 }
 
@@ -244,7 +250,7 @@ void send_new_color_pincel(double red,double green,double blue){
     new.green = green;
     new.blue = blue;
     if (send(sockfd_point, &new, sizeof(Punto), 0) == -1){
-	    perror("send: ");
+	    perror("senddddd: ");
 	    exit(EXIT_FAILURE);
     }
 }
@@ -252,11 +258,16 @@ void send_new_color_pincel(double red,double green,double blue){
 void on_color_button_color_set(GtkWidget *c) { 
     GdkRGBA color; //es un struct
     gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(c),&color);
-    red = color.red;  green = color.green; blue = color.blue; alpha = color.alpha;
-    send_new_color_pincel(red,green,blue);
+    red = color.red;  
+    green = color.green; 
+    blue = color.blue; 
+    alpha = color.alpha;
+    if(conect){    
+      send_new_color_pincel(red,green,blue);
+    }
 }
 
-void on_btn_bg_color_set(GtkWidget *c){
+void on_btn_bg_color_set(GtkWidget /*GtkColorButton*/ *c){
     GdkRGBA color; //es un struct
     gtk_color_chooser_get_rgba(GTK_COLOR_CHOOSER(c),&color);
     update_color_bg(color.red,color.green,color.blue,color.alpha);
@@ -277,17 +288,19 @@ void desconectar()
 void update_color_bg(double r_bg,double g_bg, double b_bg,double a_bg){
     fflush(NULL);
     
+    //printf("bg red update: %f\n", r_bg);
+    //printf("bg green update: %f\n", g_bg);
+    //printf("bg blue update: %f\n", b_bg);
+
     GdkRGBA cbg;
     cbg.red = r_bg;
     cbg.green = g_bg;
     cbg.blue = b_bg;
-    cbg.alpha = a_bg;
-    
-    gtk_widget_modify_bg(GTK_WIDGET(window),GTK_STATE_NORMAL,(GdkRGBA*)&cbg);
+    cbg.alpha = a_bg;    
+
+    gtk_widget_override_background_color(GTK_WIDGET(window),GTK_STATE_NORMAL,&cbg);
 
 }
-
-
 
 //funcion que ejecuta el hilo que se conecta con el servidor
 void* listen_server(void *args)
@@ -322,7 +335,7 @@ void* listen_server(void *args)
 		    
 		    case NEWCOLORBG:
 			gdk_threads_enter();//entra a la seccion critica
-			update_color_bg(update.red,update.blue,update.green,update.alpha);
+			update_color_bg(update.red,update.green,update.blue,update.alpha);
 			gdk_threads_leave(); //deja la seccion critica.
 			
 		    case NEWDRAWPOINT:
@@ -419,6 +432,11 @@ void on_btn_conectar_toggled(GtkToggleButton *toggledButton){
     }
 }
 
+
+void on_btn_erase_clicked(GtkToggleButton *toggledButton){
+	printf("CLICK EN BORRAR\n");
+}
+
 void configure_GUI(){
     p1 = p2 = start = NULL;
     
@@ -457,6 +475,14 @@ void configure_GUI(){
     gtk_widget_set_events(draw_area, GDK_BUTTON_MOTION_MASK | GDK_BUTTON_PRESS_MASK);
     gtk_window_set_keep_above (GTK_WINDOW(window), TRUE);
     
+
+    GdkColor cbg;
+    cbg.red = 0x0000;
+    cbg.green = 0xffff;
+    cbg.blue = 0x0000;
+
+    gtk_widget_modify_bg(GTK_WIDGET(window),GTK_STATE_NORMAL,&cbg);
+
     //default background color
     GdkColor color_bg;
     
