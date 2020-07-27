@@ -28,6 +28,7 @@ struct sockaddr_in addr; // dirección del server donde se conectara
 char *ip;   
 int stop=0;
 int sockfd_point = -1;
+int dejar_dibujar;
 
 
 struct Punto * usuarios_pizarra;//para almacenar los colores de los miembros
@@ -78,7 +79,7 @@ void on_btn_conectar_toggled(GtkToggleButton *toggledButton);
 void on_id_erase_toggled(GtkCheckButton *toggledCheck);
 static void draw_brush (GtkWidget *widget, gdouble  x, gdouble  y);
 void configure_GUI();
-void send_new_draw_punto();
+void send_new_draw_punto(double x, double y);
 void update_color_bg();
 
 	
@@ -104,38 +105,37 @@ gboolean on_draw_area_draw (GtkWidget *widget, cairo_t *cr, gpointer data) {
 
     //Establece el ancho de la linea
     cairo_set_line_width(cr, line_width);
+    if(!dejar_dibujar){
+	if (start == NULL) return FALSE;
 
-    if (start == NULL) return FALSE;
+	int old_x = start->x;
+	int old_y = start->y;
 
-    int old_x = start->x;
-    int old_y = start->y;
+	p1 = start->next;
 
-    p1 = start->next;
+	while ( p1 != NULL ) {
+		//obtiene el color a pintar
+	  
+		cairo_set_source_rgb(cr, p1->red, p1->green, p1->blue);
 
-    while ( p1 != NULL ) {
-	    //obtiene el color a pintar
-      
-	    cairo_set_source_rgb(cr, p1->red, p1->green, p1->blue);
+	    cairo_move_to (cr, (double) old_x, (double) old_y);
+	    //dibuja una linea hasta este otro punto.
+	    cairo_line_to (cr, (double) p1->x, (double) p1->y);
+	    cairo_stroke (cr);
 
-    	cairo_move_to (cr, (double) old_x, (double) old_y);
-    	//dibuja una linea hasta este otro punto.
-    	cairo_line_to (cr, (double) p1->x, (double) p1->y);
-    	cairo_stroke (cr);
-
-    	//actualiza old & p1.
-    	old_x = p1->x;
-    	old_y =  p1->y;
-    	p1 = p1->next;
+	    //actualiza old & p1.
+	    old_x = p1->x;
+	    old_y =  p1->y;
+	    p1 = p1->next;
+	}
     }
-
+	
     return FALSE;
 }
 
 //se ejecuta ante un evento de release e indica que debe dejar de dibujarse ante un motion event
 gboolean on_draw_area_button_release_event (GtkWidget *widget, GdkEventButton *event)
 {
-    
-    
     return TRUE;
 }
 
@@ -143,7 +143,9 @@ gboolean on_draw_area_button_release_event (GtkWidget *widget, GdkEventButton *e
 gboolean on_draw_area_button_press_event (GtkWidget *widget, GdkEventButton *event) {
     
     //le pasa la posicion en donde se hizo click.
+
     draw_brush (widget, event->x, event->y);
+
     return TRUE;
 }
 
@@ -193,7 +195,6 @@ void borrarTodo() {
  *  Cuando estas presionando el boton del mouse y a la vez te moves.
 */
 gboolean on_draw_area_motion_notify_event (GtkWidget *widget, GdkEventMotion *event, gpointer data) {
-
     if (event->state & GDK_BUTTON1_MASK ) 
     draw_brush (widget, event->x, event->y);
     return TRUE;
@@ -264,7 +265,6 @@ void dibujar(Punto new){
       end = p1;      
     }
     //start = p1;
-    //send_new_draw_punto(x,y);
     gtk_widget_queue_draw (draw_area);
 }
 
@@ -388,26 +388,25 @@ void* listen_server(void *args)
 			  usuarios_pizarra[id].red=update.red;
 			  usuarios_pizarra[id].green=update.green;
 			  usuarios_pizarra[id].blue=update.blue;
-			  printf("EL usuario %d ahora tiene el color azul %lf \n",id,update.blue);
 			  break;
 		    
 		  case NEWCOLORBG:
 			  gdk_threads_enter();//entra a la seccion critica
 			  update_color_bg(update.red,update.green,update.blue,update.alpha);
 			  gdk_threads_leave(); //deja la seccion critica.
-        break;			
+			  break;			
 
 		  case NEWDRAWPOINT:
 			  gdk_threads_enter();//entra a la seccion critica
 			  dibujar(update);
 			  gdk_threads_leave(); //deja la seccion critica.
-        break;		    
+			  break;		    
 
 		  case CLEAR:
-        gdk_threads_enter();//entra a la seccion critica
+			  gdk_threads_enter();//entra a la seccion critica
 			  borrarTodo();
 			  gdk_threads_leave(); //deja la seccion critica.
-        break;			  
+			  break;			  
 
 		    /*case NEWLINEWIDTH:
 			gdk_threads_enter();//entra a la seccion critica
@@ -427,7 +426,6 @@ void* listen_server(void *args)
 
 
 void on_btn_conectar_toggled(GtkToggleButton *toggledButton){
-    printf("on_btn_conectar \n");
     gboolean T = gtk_toggle_button_get_active(toggledButton);
     //background color
     GdkColor color_bg;
@@ -473,7 +471,6 @@ void on_btn_conectar_toggled(GtkToggleButton *toggledButton){
 		    exit(EXIT_FAILURE);
 	    
 	    }else{
-		    printf("sockfd_point vale %d\n",sockfd_point);
 		    
 		    //creando hilo para escuchar al servidor
 		    status = pthread_create(&t_id, NULL, listen_server, (void*) 0);
@@ -492,6 +489,15 @@ void on_btn_conectar_toggled(GtkToggleButton *toggledButton){
 	color_bg.green = 0x0000;
 	color_bg.blue = 0x0000;  
 	gtk_widget_modify_bg(GTK_WIDGET(lbl_connect),GTK_STATE_NORMAL,&color_bg);
+	conect = 0;
+	stop = 1;
+	Punto cerrar;
+	cerrar.tipo=DESCONECTAR;
+
+	if (send(sockfd_point, &cerrar, sizeof(Punto), 0) == -1)
+		printf("Error la comunicarse con el servidor\n");
+	stop = 1;
+	close(sockfd_point);
     }
 }
 
@@ -628,4 +634,3 @@ int main(int argc, char *argv[]) {
 
     return EXIT_SUCCESS;
 }
-

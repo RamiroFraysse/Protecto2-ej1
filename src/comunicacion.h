@@ -10,21 +10,6 @@
 #define MAXDATASIZE 1024
 
 
-char * 
-inet_ntoa_my(in)
-	struct in_addr in;
-{
-	static char b[18];
-	register char *p;
-
-	p = (char *)&in;
-	#define	UC(b)	(((int)b)&0xff)
-	(void)snprintf(b, sizeof(b),
-	    "%d.%d.%d.%d%c", UC(p[0]), UC(p[1]), UC(p[2]), UC(p[3]),'\0');
-	return (b);
-}
-
-
 typedef struct Punto {
 	int id;
 	double x;

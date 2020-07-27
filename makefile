@@ -24,7 +24,7 @@ LDFLAGS=$(PTHREAD) $(GTKLIB) -export-dynamic
 OBJS= main.o 
 
 all: $(OBJS) server
-	$(LD) -o $(TARGET) $(OBJS) $(LDFLAGS)
+	$(LD) -o $(TARGET) $(OBJS) $(LDFLAGS) -lpthread
 
 server : src/server.c
 	gcc -o server src/server.c -lpthread

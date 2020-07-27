@@ -25,13 +25,9 @@ void send_update(Punto *nuevo,int id){
 		    
 		    if(sockets_clientes[i]!=-1 && i!=id)
 		    {
-			printf("ENVIANDO NUEVO color al cliente %d \n",i);
 			prueba = send(sockets_clientes[i], nuevo, sizeof(Punto), 0);
 			if ( prueba== -1)
 			    perror("send");
-			else
-			    printf("el servidor envio %d bytes \n",prueba);
-			    
 		    }
 		}
 	
@@ -40,7 +36,6 @@ void send_update(Punto *nuevo,int id){
 
 void* funcion_hilo_point(int id)
 {	
-	printf("Este es el hilo del cliente %d \n",id);
 	//struct Punto last;
 	int i = 0;
 	char tipo;
@@ -143,7 +138,6 @@ int main()
 		perror("socket");
 		exit(EXIT_FAILURE);
 	}
-	printf("sockfd vale despues de crear el socket %d\n",sockfd);
 	//define familia
 	svr_addr.sin_family = AF_INET;
 	//asigna puerto
@@ -166,13 +160,11 @@ int main()
 			//pide y acepta las conexiones de clientes al sistema operativo
 		    if ((newfd = accept(sockfd, (struct sockaddr *)&clnt_addr, &sin_size)) != -1){
 				nro_cliente++;
-				printf("Cantidad de clientes conectados %d\n",nro_cliente);
 				if((actual = next_cliente())>-1){
 					sockets_clientes[actual] = newfd;
-					char* ip = inet_ntoa_my(clnt_addr.sin_addr);
+					char* ip = inet_ntoa(clnt_addr.sin_addr);
 					printf("Se establecio una conexion desde %s, ID cliente: %i, con identificador socket: %d \n",ip,actual,newfd);
 					status = pthread_create(&tid[actual], NULL, funcion_hilo_point, (void*) actual);
-					printf("status vale: %d \n",status);
 					//en caso de error
 					if(status)
 					  exit(1);
